@@ -370,9 +370,9 @@ export default function SyndicatePage() {
                           {deal.organizationId ? (
                             <Link
                               href={`/organizations/${deal.organizationId}`}
-                              className="text-sm font-medium text-purple-600 hover:text-purple-800 hover:underline"
+                              className="text-sm font-medium text-purple-600 hover:text-purple-800 underline cursor-pointer"
                             >
-                              {deal.companyName}
+                              {deal.companyName} →
                             </Link>
                           ) : (
                             <div className="text-sm font-medium text-gray-900">
