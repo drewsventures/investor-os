@@ -37,23 +37,9 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            stage: true,
-            valuation: true,
-            ourAllocation: true
+            stage: true
           },
           orderBy: { createdAt: 'desc' }
-        },
-        investments: {
-          select: {
-            id: true,
-            amountInvested: true,
-            investmentDate: true,
-            status: true
-          }
-        },
-        metrics: {
-          orderBy: { snapshotDate: 'desc' },
-          take: 10
         },
         _count: {
           select: {
@@ -74,20 +60,16 @@ export async function GET(request: NextRequest) {
     const prospectCount = organizations.filter(o => o.organizationType === 'PROSPECT').length;
     const lpCount = organizations.filter(o => o.organizationType === 'LP').length;
 
-    const totalInvested = organizations
-      .flatMap(o => o.investments)
-      .reduce((sum, i) => sum + Number(i.amountInvested), 0);
-
     const activeDeals = organizations
       .flatMap(o => o.deals)
-      .filter(d => !['PASSED', 'PORTFOLIO'].includes(d.stage));
+      .filter(d => d.stage && !['PASSED', 'PORTFOLIO'].includes(d.stage));
 
     const summary = {
       totalOrganizations: organizations.length,
       portfolioCompanies: portfolioCount,
       prospects: prospectCount,
       lps: lpCount,
-      totalInvested,
+      totalInvested: 0,
       activeDeals: activeDeals.length,
       industryBreakdown: getIndustryBreakdown(organizations),
       stageBreakdown: getStageBreakdown(organizations)
