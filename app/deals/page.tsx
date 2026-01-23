@@ -12,9 +12,6 @@ import {
   Plus,
   DollarSign,
   Calendar,
-  Building2,
-  TrendingUp,
-  Filter
 } from 'lucide-react';
 
 interface Deal {
@@ -63,7 +60,7 @@ export default function DealsPage() {
   const fetchDeals = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/investor-os/deals');
+      const response = await fetch('/api/deals');
       const data = await response.json();
       setDeals(data.deals || []);
       setSummary(data.summary || null);
@@ -87,7 +84,7 @@ export default function DealsPage() {
     const dealId = e.dataTransfer.getData('dealId');
 
     try {
-      const response = await fetch(`/api/investor-os/deals/${dealId}`, {
+      const response = await fetch(`/api/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage })
@@ -135,7 +132,7 @@ export default function DealsPage() {
             </p>
           </div>
           <Link
-            href="/investor-os/deals/new"
+            href="/deals/new"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -250,7 +247,7 @@ export default function DealsPage() {
                           onDragStart={(e) => handleDragStart(e, deal.id)}
                           className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md cursor-move border border-gray-200 transition-shadow"
                         >
-                          <Link href={`/investor-os/deals/${deal.id}`}>
+                          <Link href={`/deals/${deal.id}`}>
                             <div>
                               <h4 className="font-semibold text-gray-900 hover:text-blue-600 mb-1">
                                 {deal.name}

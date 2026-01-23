@@ -157,6 +157,7 @@ model Organization {
   tasks           Task[]
   facts           Fact[]
   metrics         OrganizationMetric[]
+  syndicateDeals  SyndicateDeal[]
 
   @@index([canonicalKey])
   @@index([organizationType])
@@ -485,6 +486,86 @@ model InvestmentMetric {
 
   @@unique([investmentId, metricType, snapshotDate])
   @@index([investmentId, metricType, snapshotDate])
+}
+
+// ============================================================================
+// ANGELLIST SYNDICATE PORTFOLIO
+// ============================================================================
+
+// Syndicate deal status
+enum SyndicateDealStatus {
+  LIVE
+  REALIZED
+  CLOSING
+  TRANSFERRED
+}
+
+// Syndicate deal type
+enum SyndicateDealType {
+  SYNDICATE
+  FUND
+}
+
+// SYNDICATE DEALS - AngelList syndicate investments
+model SyndicateDeal {
+  id                  String   @id @default(cuid())
+
+  // Company Info
+  companyName         String
+  companyDomain       String?  // For news lookups
+  market              String?  // Blockchain/Crypto, AI/ML, SaaS, etc.
+
+  // Deal Classification
+  status              SyndicateDealStatus @default(LIVE)
+  dealType            SyndicateDealType   @default(SYNDICATE)
+  isHostedDeal        Boolean  @default(false) // true if Red Beard Ventures is lead (0% carry)
+
+  // Investment Details
+  investDate          DateTime?
+  invested            Decimal  @db.Decimal(15, 2)
+  unrealizedValue     Decimal? @db.Decimal(15, 2)
+  realizedValue       Decimal? @db.Decimal(15, 2)
+  netValue            Decimal? @db.Decimal(15, 2)
+  multiple            Decimal? @db.Decimal(10, 4)
+
+  // Share Details
+  numberOfShares      Decimal? @db.Decimal(15, 2)
+  paidPricePerShare   Decimal? @db.Decimal(15, 6)
+  currentPricePerShare Decimal? @db.Decimal(15, 6)
+  numberOfLPs         Int?
+
+  // Entity & Structure
+  investmentEntity    String   // Drew Austin Greenfeld, DrewsVentures Holdings LLC, etc.
+  leadSyndicate       String?  // Red Beard Ventures, Andreas Klinger, etc.
+  fundName            String?  // SPV name / Fund Legal Name
+
+  // Round Info
+  round               String?  // Pre-Seed, Seed, Series A, etc.
+  instrument          String?  // SAFE, Equity Round, Convertible Debt, SAFT
+  roundSize           Decimal? @db.Decimal(15, 2)
+  allocation          Decimal? @db.Decimal(15, 2)
+  valuationType       String?  // Pre-money, Post-money, cap
+  valuation           Decimal? @db.Decimal(15, 2)
+  valuationUpdatedAt  DateTime?
+  discount            Decimal? @db.Decimal(5, 2)
+  carry               Decimal? @db.Decimal(5, 2)
+  shareClass          String?  // Common, Preferred
+  proRataRights       Boolean? // Pro Rata Rights
+
+  // Linked Organization (optional - for deeper integration)
+  organizationId      String?
+  organization        Organization? @relation(fields: [organizationId], references: [id])
+
+  // News/Updates
+  lastNewsCheck       DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status])
+  @@index([isHostedDeal])
+  @@index([market])
+  @@index([companyName])
 }
 
 // ============================================================================

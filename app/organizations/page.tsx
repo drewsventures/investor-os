@@ -10,9 +10,7 @@ import Link from 'next/link';
 import {
   Building2,
   Search,
-  Filter,
   Plus,
-  ArrowUpDown,
   ExternalLink
 } from 'lucide-react';
 
@@ -63,7 +61,7 @@ export default function OrganizationsPage() {
       if (typeFilter) params.append('organizationType', typeFilter);
       if (industryFilter) params.append('industry', industryFilter);
 
-      const response = await fetch(`/api/investor-os/organizations?${params}`);
+      const response = await fetch(`/api/organizations?${params}`);
       const data = await response.json();
 
       setOrganizations(data.organizations || []);
@@ -116,7 +114,7 @@ export default function OrganizationsPage() {
             </p>
           </div>
           <Link
-            href="/investor-os/organizations/new"
+            href="/organizations/new"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -222,7 +220,7 @@ export default function OrganizationsPage() {
               : 'Get started by adding your first organization'}
           </p>
           <Link
-            href="/investor-os/organizations/new"
+            href="/organizations/new"
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
@@ -258,7 +256,7 @@ export default function OrganizationsPage() {
               {filteredOrgs.map((org) => (
                 <tr key={org.id} className="hover:bg-gray-50 cursor-pointer">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Link href={`/investor-os/organizations/${org.id}`} className="flex items-center gap-3">
+                    <Link href={`/organizations/${org.id}`} className="flex items-center gap-3">
                       {org.logoUrl ? (
                         <img src={org.logoUrl} alt={org.name} className="w-10 h-10 rounded-full" />
                       ) : (

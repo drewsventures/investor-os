@@ -81,6 +81,23 @@ interface Fact {
   validFrom: Date;
 }
 
+interface SyndicateDeal {
+  id: string;
+  companyName: string;
+  status: string;
+  investDate: Date | null;
+  invested: number;
+  unrealizedValue: number | null;
+  realizedValue: number | null;
+  multiple: number | null;
+  fundName: string | null;
+  round: string | null;
+  instrument: string | null;
+  valuation: number | null;
+  numberOfLPs: number | null;
+  isHostedDeal: boolean;
+}
+
 interface Organization {
   id: string;
   name: string;
@@ -95,6 +112,7 @@ interface Organization {
   people: Person[];
   deals: Deal[];
   investments: Investment[];
+  syndicateDeals: SyndicateDeal[];
   conversations: Conversation[];
   tasks: Task[];
   factsByType: Record<string, Fact[]>;
@@ -116,7 +134,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const fetchOrganization = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/investor-os/organizations/${id}`);
+      const response = await fetch(`/api/organizations/${id}`);
       const data = await response.json();
       setOrganization(data);
     } catch (error) {
@@ -144,7 +162,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Organization not found</h3>
-            <Link href="/investor-os/organizations" className="text-blue-600 hover:underline">
+            <Link href="/organizations" className="text-blue-600 hover:underline">
               Back to organizations
             </Link>
           </div>
@@ -159,7 +177,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
         {/* Header */}
         <div className="mb-6">
           <Link
-            href="/investor-os/organizations"
+            href="/organizations"
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -358,6 +376,107 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                   </div>
                 )}
 
+                {/* Syndicate Investments */}
+                {organization.syndicateDeals && organization.syndicateDeals.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-green-600" />
+                      Syndicate Investments
+                    </h3>
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <div className="text-sm text-blue-700">Total Invested</div>
+                        <div className="text-xl font-bold text-blue-900">
+                          ${(organization.syndicateDeals.reduce((sum, d) => sum + Number(d.invested), 0) / 1000000).toFixed(2)}M
+                        </div>
+                      </div>
+                      <div className="bg-green-50 rounded-lg p-3">
+                        <div className="text-sm text-green-700">Unrealized Value</div>
+                        <div className="text-xl font-bold text-green-900">
+                          ${(organization.syndicateDeals.reduce((sum, d) => sum + Number(d.unrealizedValue || 0), 0) / 1000000).toFixed(2)}M
+                        </div>
+                      </div>
+                      <div className="bg-purple-50 rounded-lg p-3">
+                        <div className="text-sm text-purple-700">Realized Value</div>
+                        <div className="text-xl font-bold text-purple-900">
+                          ${(organization.syndicateDeals.reduce((sum, d) => sum + Number(d.realizedValue || 0), 0) / 1000000).toFixed(2)}M
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <div className="text-sm text-orange-700"># of Rounds</div>
+                        <div className="text-xl font-bold text-orange-900">
+                          {organization.syndicateDeals.length}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Individual Investments */}
+                    <div className="space-y-3">
+                      {organization.syndicateDeals.map((deal) => (
+                        <div key={deal.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                deal.isHostedDeal ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {deal.isHostedDeal ? 'Hosted' : 'Co-Syndicate'}
+                              </span>
+                              {deal.round && (
+                                <span className="text-sm text-gray-600">{deal.round}</span>
+                              )}
+                              {deal.instrument && (
+                                <span className="text-xs text-gray-500">• {deal.instrument}</span>
+                              )}
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              deal.status === 'LIVE' ? 'bg-green-100 text-green-800' :
+                              deal.status === 'REALIZED' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {deal.status}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <div className="text-gray-500">Invested</div>
+                              <div className="font-semibold text-gray-900">
+                                ${Number(deal.invested).toLocaleString()}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Unrealized</div>
+                              <div className="font-semibold text-green-700">
+                                ${Number(deal.unrealizedValue || 0).toLocaleString()}
+                              </div>
+                            </div>
+                            {deal.valuation && (
+                              <div>
+                                <div className="text-gray-500">Valuation</div>
+                                <div className="font-semibold text-gray-900">
+                                  ${(Number(deal.valuation) / 1000000).toFixed(1)}M
+                                </div>
+                              </div>
+                            )}
+                            {deal.investDate && (
+                              <div>
+                                <div className="text-gray-500">Date</div>
+                                <div className="font-semibold text-gray-900">
+                                  {new Date(deal.investDate).toLocaleDateString()}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {deal.fundName && (
+                            <div className="mt-2 text-xs text-gray-500">
+                              Vehicle: {deal.fundName}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Key Metrics */}
                 {Object.keys(organization.metricsByType).length > 0 && (
                   <div>
@@ -419,7 +538,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                     {organization.people.map((person) => (
                       <Link
                         key={person.id}
-                        href={`/investor-os/people/${person.id}`}
+                        href={`/people/${person.id}`}
                         className="block bg-gray-50 rounded-lg p-4 hover:bg-gray-100"
                       >
                         <div className="flex items-center justify-between">
@@ -456,7 +575,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                     {organization.deals.map((deal) => (
                       <Link
                         key={deal.id}
-                        href={`/investor-os/deals/${deal.id}`}
+                        href={`/deals/${deal.id}`}
                         className="block bg-gray-50 rounded-lg p-4 hover:bg-gray-100"
                       >
                         <div className="flex items-center justify-between">

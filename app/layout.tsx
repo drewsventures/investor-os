@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import AppLayout from '@/components/AppLayout';
 
 export const metadata: Metadata = {
   title: 'Investor OS | Red Beard Ventures x Denarii Labs',
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        {children}
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );

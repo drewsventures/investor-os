@@ -13,7 +13,7 @@ import {
   Plus,
   Mail,
   Phone,
-  Linkedin,
+  LinkedinIcon,
   Building2,
   Calendar
 } from 'lucide-react';
@@ -58,7 +58,7 @@ export default function PeoplePage() {
   const fetchPeople = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/investor-os/people');
+      const response = await fetch('/api/people');
       const data = await response.json();
       setPeople(data.people || []);
       setSummary(data.summary || null);
@@ -107,7 +107,7 @@ export default function PeoplePage() {
             </p>
           </div>
           <Link
-            href="/investor-os/people/new"
+            href="/people/new"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -180,7 +180,7 @@ export default function PeoplePage() {
               : 'Get started by adding your first contact'}
           </p>
           <Link
-            href="/investor-os/people/new"
+            href="/people/new"
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
@@ -213,7 +213,7 @@ export default function PeoplePage() {
               {filteredPeople.map((person) => (
                 <tr key={person.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Link href={`/investor-os/people/${person.id}`} className="flex items-center gap-3">
+                    <Link href={`/people/${person.id}`} className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                         <span className="text-blue-600 font-medium">
                           {person.firstName[0]}{person.lastName[0]}
@@ -244,7 +244,7 @@ export default function PeoplePage() {
                       )}
                       {person.linkedInUrl && (
                         <div className="flex items-center gap-1">
-                          <Linkedin className="w-3 h-3" />
+                          <LinkedinIcon className="w-3 h-3" />
                           <a
                             href={person.linkedInUrl}
                             target="_blank"
@@ -263,7 +263,7 @@ export default function PeoplePage() {
                         <div key={org.id} className="flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
                           <Link
-                            href={`/investor-os/organizations/${org.id}`}
+                            href={`/organizations/${org.id}`}
                             className="hover:text-blue-600"
                           >
                             {org.name}

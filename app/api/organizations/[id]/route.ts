@@ -67,6 +67,9 @@ export async function GET(
         metrics: {
           orderBy: { snapshotDate: 'desc' },
           take: 50
+        },
+        syndicateDeals: {
+          orderBy: { investDate: 'desc' }
         }
       }
     });
