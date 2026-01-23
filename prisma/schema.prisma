@@ -101,6 +101,19 @@ model Person {
   twitterHandle   String?
   phone           String?
 
+  // Geography
+  city            String?
+  country         String?
+  region          String?   // e.g., "EMEA", "APAC", "North America"
+
+  // Contact methods
+  telegramHandle  String?
+
+  // Ownership tracking
+  addedBy         String?   // Person ID of team member who added this
+  currentOwner    String?   // Person ID of team member who owns relationship
+  primaryPOC      String?   // Person ID of primary point of contact
+
   // Privacy tier
   privacyTier     PrivacyTier @default(INTERNAL)
 
@@ -120,6 +133,11 @@ model Person {
   @@index([email])
   @@index([canonicalKey])
   @@index([privacyTier])
+  @@index([city])
+  @@index([country])
+  @@index([region])
+  @@index([telegramHandle])
+  @@index([currentOwner])
 }
 
 // ORGANIZATIONS - Companies (portfolio, prospects, LPs)
@@ -139,6 +157,16 @@ model Organization {
   organizationType OrganizationType @default(PROSPECT)
   stage           String? // Pre-seed, Seed, Series A, etc. (for portfolio/prospects)
   industry        String? // Vertical (DeFi, Infrastructure, Gaming, etc.)
+
+  // Geography
+  city            String?
+  country         String?
+  region          String?
+
+  // Ownership tracking
+  addedBy         String?   // Person ID of team member who added this
+  currentOwner    String?   // Person ID of team member who owns relationship
+  primaryPOC      String?   // Person ID of primary point of contact
 
   // Privacy
   privacyTier     PrivacyTier @default(INTERNAL)
@@ -162,6 +190,10 @@ model Organization {
   @@index([canonicalKey])
   @@index([organizationType])
   @@index([privacyTier])
+  @@index([city])
+  @@index([country])
+  @@index([region])
+  @@index([currentOwner])
 }
 
 // GENERIC RELATIONSHIPS - Graph edges between any entities
