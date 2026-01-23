@@ -23,6 +23,11 @@ interface EnrichmentResult {
     company: string;
     fieldsUpdated: string[];
   }>;
+  debug?: Array<{
+    name: string;
+    responseBlocks: any[];
+    parsedData: any;
+  }>;
 }
 
 /**
@@ -126,6 +131,7 @@ export async function POST(request: NextRequest) {
       skipped: 0,
       errors: [],
       details: [],
+      debug: [],
     };
 
     // Get people who need enrichment (missing LinkedIn or location)
@@ -218,6 +224,13 @@ Important:
             }
           }
         }
+
+        // Add debug info
+        result.debug?.push({
+          name: person.fullName,
+          responseBlocks: response.content.map(b => ({ type: b.type, ...(b.type === 'text' ? { text: (b as any).text?.substring(0, 500) } : {}) })),
+          parsedData: enrichmentData,
+        });
 
         if (!enrichmentData) {
           console.log(`No JSON found for ${person.fullName}. Raw text:`, rawText);
