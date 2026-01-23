@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Briefcase,
   Search,
@@ -41,6 +42,7 @@ interface SyndicateDeal {
   allocation: number | null;
   valuation: number | null;
   carry: number | null;
+  organizationId: string | null;
 }
 
 interface Summary {
@@ -365,9 +367,18 @@ export default function SyndicatePage() {
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${deal.isHostedDeal ? 'bg-orange-500' : 'bg-gray-400'}`} />
                         <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {deal.companyName}
-                          </div>
+                          {deal.organizationId ? (
+                            <Link
+                              href={`/organizations/${deal.organizationId}`}
+                              className="text-sm font-medium text-purple-600 hover:text-purple-800 hover:underline"
+                            >
+                              {deal.companyName}
+                            </Link>
+                          ) : (
+                            <div className="text-sm font-medium text-gray-900">
+                              {deal.companyName}
+                            </div>
+                          )}
                           {deal.fundName && (
                             <div className="text-xs text-gray-500 truncate max-w-[200px]">
                               {deal.fundName}
