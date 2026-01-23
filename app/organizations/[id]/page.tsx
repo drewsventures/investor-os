@@ -5,7 +5,7 @@
  * Comprehensive view of a single organization with all related data
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import {
   Building2,
@@ -97,18 +97,19 @@ interface Organization {
 }
 
 export default function OrganizationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');
 
   useEffect(() => {
     fetchOrganization();
-  }, [params.id]);
+  }, [id]);
 
   const fetchOrganization = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/investor-os/organizations/${params.id}`);
+      const response = await fetch(`/api/investor-os/organizations/${id}`);
       const data = await response.json();
       setOrganization(data);
     } catch (error) {

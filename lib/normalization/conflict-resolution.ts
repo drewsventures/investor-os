@@ -158,7 +158,7 @@ export async function detectConflict(newFact: FactInput): Promise<Conflict | nul
   }
 
   // Find existing facts with same entity, type, and key
-  const existingFacts = await prisma.fact.findMany({
+  const existingFactsRaw = await prisma.fact.findMany({
     where,
     select: {
       id: true,
@@ -170,6 +170,12 @@ export async function detectConflict(newFact: FactInput): Promise<Conflict | nul
       createdAt: true,
     },
   });
+
+  // Convert Decimal to number for TypeScript compatibility
+  const existingFacts = existingFactsRaw.map(f => ({
+    ...f,
+    confidence: f.confidence.toNumber()
+  }));
 
   // Filter to only facts with different values
   const conflictingFacts = existingFacts.filter((f) => f.value !== newFact.value);

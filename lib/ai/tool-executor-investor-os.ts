@@ -99,7 +99,7 @@ export async function getOrganization(input: {
     }
 
     // Get relationships (people at this org)
-    let relationships = null;
+    let relationships: any[] | null = null;
     if (includePeople) {
       relationships = await prisma.relationship.findMany({
         where: {
@@ -130,7 +130,7 @@ export async function getOrganization(input: {
 
         // Attach people to org response
         (org as any).people = people.map(p => {
-          const rel = relationships.find(r => r.sourceId === p.id);
+          const rel = relationships?.find(r => r.sourceId === p.id);
           return {
             ...p,
             role: (rel?.properties as any)?.role || 'Unknown',
@@ -241,7 +241,7 @@ export async function getPerson(input: {
     }
 
     // Get relationships
-    let relationships = null;
+    let relationships: any[] | null = null;
     if (includeRelationships) {
       relationships = await prisma.relationship.findMany({
         where: {
@@ -272,7 +272,7 @@ export async function getPerson(input: {
         });
 
         (person as any).organizations = orgs.map(o => {
-          const rel = relationships.find(r => r.targetId === o.id);
+          const rel = relationships?.find(r => r.targetId === o.id);
           return {
             ...o,
             role: (rel?.properties as any)?.role || 'Unknown',
@@ -882,7 +882,7 @@ export async function generateBriefing(input: {
       const org = orgResult.data as any;
 
       // Generate risks if requested
-      let risks = null;
+      let risks: any = null;
       if (includeRisks) {
         const riskResult = await detectRisks({ organizationId: entityId });
         if (riskResult.success) {

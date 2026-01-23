@@ -5,7 +5,7 @@
  * Comprehensive view of a single person with all related data
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -70,18 +70,19 @@ interface Person {
 }
 
 export default function PersonDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'conversations' | 'tasks' | 'lp'>('overview');
 
   useEffect(() => {
     fetchPerson();
-  }, [params.id]);
+  }, [id]);
 
   const fetchPerson = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/investor-os/people/${params.id}`);
+      const response = await fetch(`/api/investor-os/people/${id}`);
       const data = await response.json();
       setPerson(data);
     } catch (error) {
