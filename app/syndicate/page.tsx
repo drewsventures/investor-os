@@ -373,7 +373,7 @@ export default function SyndicatePage() {
                               style={{ color: '#7c3aed', textDecoration: 'underline', cursor: 'pointer' }}
                               className="text-sm font-medium"
                             >
-                              {deal.companyName} →
+                              {deal.companyName}
                             </a>
                           ) : (
                             <span className="text-sm font-medium text-gray-900">
