@@ -168,7 +168,7 @@ export default function NetworkPage() {
               Network
             </h1>
             <p className="text-gray-600 mt-1">
-              Your team's network of contacts and connections
+              Your team&apos;s network of contacts and connections
             </p>
           </div>
           <Link
