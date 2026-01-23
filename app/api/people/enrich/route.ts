@@ -199,10 +199,15 @@ Important:
           ],
         });
 
+        // Debug: log what we got back
+        console.log(`Response for ${person.fullName}:`, JSON.stringify(response.content, null, 2));
+
         // Find the final text response (after tool use)
         let enrichmentData = null;
+        let rawText = '';
         for (const block of response.content) {
           if (block.type === 'text') {
+            rawText = block.text;
             try {
               const jsonMatch = block.text.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
@@ -215,6 +220,7 @@ Important:
         }
 
         if (!enrichmentData) {
+          console.log(`No JSON found for ${person.fullName}. Raw text:`, rawText);
           result.skipped++;
           continue;
         }
