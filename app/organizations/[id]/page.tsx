@@ -19,8 +19,14 @@ import {
   Plus,
   ArrowLeft,
   Calendar,
-  DollarSign
+  DollarSign,
+  Sparkles
 } from 'lucide-react';
+import { InvestmentSummaryCard } from '@/components/investor-os/InvestmentSummaryCard';
+import { HealthStatusCard } from '@/components/investor-os/HealthStatusCard';
+import { LastUpdateCard } from '@/components/investor-os/LastUpdateCard';
+import { MetricsDashboard } from '@/components/investor-os/MetricsDashboard';
+import { CollapsibleAISidebar } from '@/components/investor-os/CollapsibleAISidebar';
 
 interface Person {
   id: string;
@@ -101,6 +107,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     fetchOrganization();
@@ -205,9 +212,16 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
 
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Ask AI Brain
+              <button
+                onClick={() => setIsChatOpen(!isChatOpen)}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                  isChatOpen
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                {isChatOpen ? 'Close AI Brain' : 'Ask AI Brain'}
               </button>
             </div>
 
@@ -236,6 +250,34 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
         </div>
+
+        {/* Investment Summary & Status Cards */}
+        {organization.investments.length > 0 && (
+          <div className="mb-6 space-y-4">
+            {/* Investment Summary */}
+            <InvestmentSummaryCard investments={organization.investments} />
+
+            {/* Health & Last Update Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <HealthStatusCard
+                metricsByType={organization.metricsByType}
+                tasks={organization.tasks}
+                investments={organization.investments}
+              />
+              <LastUpdateCard
+                conversations={organization.conversations}
+                facts={Object.values(organization.factsByType).flat()}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Metrics Dashboard */}
+        {organization.organizationType === 'PORTFOLIO' && Object.keys(organization.metricsByType).length > 0 && (
+          <div className="mb-6">
+            <MetricsDashboard metricsByType={organization.metricsByType} />
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow mb-6">
@@ -566,6 +608,14 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </div>
+
+      {/* AI Chat Sidebar */}
+      <CollapsibleAISidebar
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen(!isChatOpen)}
+        organizationId={organization.id}
+        organizationName={organization.name}
+      />
     </div>
   );
 }
