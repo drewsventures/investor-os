@@ -1,0 +1,554 @@
+// Investor OS - Knowledge Graph Schema
+// Operating system for Red Beard Ventures and Denarii Labs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// INVESTOR OS BRAIN - Knowledge Graph Models
+// ============================================================================
+
+// Privacy Tiers for data access control
+enum PrivacyTier {
+  PUBLIC            // Shareable publicly
+  INTERNAL          // Internal team only
+  SENSITIVE         // Need-to-know basis
+  HIGHLY_SENSITIVE  // Highly restricted (financials, terms)
+}
+
+// Organization types in the knowledge graph
+enum OrganizationType {
+  PORTFOLIO         // Current portfolio company
+  PROSPECT          // Potential investment
+  LP                // Limited Partner
+  FUND              // Other funds
+  SERVICE_PROVIDER  // Lawyers, accountants, market makers, etc.
+  OTHER
+}
+
+// Deal pipeline stages
+enum DealStage {
+  SOURCED           // Initial contact
+  FIRST_CALL        // First conversation scheduled/done
+  DILIGENCE         // Active diligence
+  PARTNER_REVIEW    // Internal review
+  TERM_SHEET        // Term sheet stage
+  CLOSING           // Legal/closing
+  PASSED            // Decided not to invest
+  PORTFOLIO         // Closed, now in portfolio
+}
+
+// Deal instrument types
+enum DealType {
+  EQUITY
+  SAFE
+  CONVERTIBLE
+  TOKEN
+  OTHER
+}
+
+// Investment status
+enum InvestmentStatus {
+  ACTIVE
+  EXITED
+  WRITTEN_OFF
+}
+
+// Conversation medium
+enum ConversationMedium {
+  MEETING
+  EMAIL
+  CALL
+  SLACK
+  WHATSAPP
+  OTHER
+}
+
+// Task status
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+// Task priority
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// PEOPLE - Unified person tracking
+model Person {
+  id              String   @id @default(cuid())
+  canonicalKey    String   @unique // email or normalized name for deduplication
+
+  // Core attributes
+  firstName       String
+  lastName        String
+  fullName        String
+  email           String?  @unique
+  linkedInUrl     String?
+  twitterHandle   String?
+  phone           String?
+
+  // Privacy tier
+  privacyTier     PrivacyTier @default(INTERNAL)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastContactedAt DateTime?
+
+  // Relationships (use Relationship model for graph edges)
+  // Query via: Relationship.where({ sourceType: "Person", sourceId: person.id })
+  //        or: Relationship.where({ targetType: "Person", targetId: person.id })
+  conversations   Conversation[] @relation("ConversationParticipants")
+  tasks           Task[]
+  facts           Fact[]
+  lpCommitments   LPCommitment[]
+
+  @@index([email])
+  @@index([canonicalKey])
+  @@index([privacyTier])
+}
+
+// ORGANIZATIONS - Companies (portfolio, prospects, LPs)
+model Organization {
+  id              String   @id @default(cuid())
+  canonicalKey    String   @unique // domain or normalized name for deduplication
+
+  // Core attributes
+  name            String   @unique
+  legalName       String?
+  domain          String?
+  description     String?  @db.Text
+  website         String?
+  logoUrl         String?
+
+  // Classification
+  organizationType OrganizationType @default(PROSPECT)
+  stage           String? // Pre-seed, Seed, Series A, etc. (for portfolio/prospects)
+  industry        String? // Vertical (DeFi, Infrastructure, Gaming, etc.)
+
+  // Privacy
+  privacyTier     PrivacyTier @default(INTERNAL)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships (use Relationship model for graph edges)
+  // Query via: Relationship.where({ sourceType: "Organization", sourceId: org.id })
+  //        or: Relationship.where({ targetType: "Organization", targetId: org.id })
+  deals           Deal[]
+  investments     Investment[]
+  lpCommitments   LPCommitment[]
+  conversations   Conversation[] @relation("ConversationOrganizations")
+  tasks           Task[]
+  facts           Fact[]
+  metrics         OrganizationMetric[]
+
+  @@index([canonicalKey])
+  @@index([organizationType])
+  @@index([privacyTier])
+}
+
+// GENERIC RELATIONSHIPS - Graph edges between any entities
+// This is the core of the graph database approach in Postgres
+model Relationship {
+  id              String   @id @default(cuid())
+
+  // Source node (from)
+  sourceType      String   // "Person", "Organization", "Deal", "Investment"
+  sourceId        String
+
+  // Target node (to)
+  targetType      String   // "Person", "Organization", "Deal", "Investment"
+  targetId        String
+
+  // Relationship type (flexible, not enum - AI can create new types!)
+  // Examples: "WORKS_AT", "FOUNDED", "INVESTED_IN", "ADVISED", "INTRODUCED_BY",
+  //           "KNOWS", "CO_INVESTED_WITH", "COMPETED_AGAINST", "REFERRED",
+  //           "MENTORED", "HIRED", "PARTNERED_WITH", "ACQUIRED_BY", etc.
+  relationshipType String
+
+  // Relationship metadata (flexible JSON for any additional context)
+  // Examples: { "role": "CEO", "equity": "2%", "title": "Technical Advisor" }
+  properties      Json?
+
+  // Relationship strength/confidence (0.0 = weak, 1.0 = strong)
+  // AI can use this for graph traversal prioritization
+  strength        Decimal  @default(1.0)
+  confidence      Decimal  @default(1.0) // How confident are we in this relationship?
+
+  // Temporal validity
+  isActive        Boolean  @default(true)
+  validFrom       DateTime @default(now())
+  validUntil      DateTime? // null = current/ongoing
+
+  // Provenance (who created this relationship and how)
+  sourceOfTruth   String   // "manual", "ai_extracted", "email", "fireflies", "linkedin", "crunchbase"
+  sourceId_ref    String?  // Reference to source (conversation ID, fact ID, etc.)
+  createdBy       String?  // User ID who confirmed this
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sourceType, sourceId, targetType, targetId, relationshipType, validFrom])
+  @@index([sourceType, sourceId])
+  @@index([targetType, targetId])
+  @@index([relationshipType])
+  @@index([isActive])
+  @@index([strength])
+}
+
+// DEALS - Investment opportunities
+model Deal {
+  id              String   @id @default(cuid())
+
+  // Core details
+  name            String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Deal specifics
+  stage           DealStage @default(SOURCED)
+  dealType        DealType  @default(EQUITY)
+
+  // Financials
+  askAmount       Decimal?  // Amount they're raising
+  ourAllocation   Decimal?  // Amount we plan to invest
+  valuation       Decimal?
+  valuationType   String?   // "pre", "post", "cap"
+
+  // Timeline
+  firstContactDate DateTime?
+  expectedCloseDate DateTime?
+  actualCloseDate  DateTime?
+
+  // Metadata
+  privacyTier     PrivacyTier @default(SENSITIVE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  conversations   Conversation[] @relation("ConversationDeals")
+  tasks           Task[]
+  facts           Fact[]
+  investment      Investment? // If closed
+
+  @@index([organizationId])
+  @@index([stage])
+  @@index([expectedCloseDate])
+}
+
+// INVESTMENTS - Closed deals / portfolio companies
+model Investment {
+  id              String   @id @default(cuid())
+
+  // Link to deal (optional - some may be imported without deal history)
+  dealId          String?  @unique
+  deal            Deal?    @relation(fields: [dealId], references: [id])
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Investment details
+  investmentDate  DateTime
+  amountInvested  Decimal
+  instrumentType  String   // "SAFE", "Equity", "Convertible", "Token"
+  ownership       Decimal? // % ownership (if applicable)
+  valuation       Decimal?
+
+  // Current status
+  status          InvestmentStatus @default(ACTIVE)
+  currentValue    Decimal?
+  exitDate        DateTime?
+  exitMultiple    Decimal?
+
+  // Metadata
+  privacyTier     PrivacyTier @default(HIGHLY_SENSITIVE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  metrics         InvestmentMetric[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([investmentDate])
+}
+
+// LPs - Limited Partner commitments
+model LPCommitment {
+  id              String   @id @default(cuid())
+
+  // Who (can be Person or Organization)
+  personId        String?
+  person          Person?  @relation(fields: [personId], references: [id])
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+
+  // Commitment details
+  fundName        String   // Which RBV fund
+  commitmentAmount Decimal
+  calledAmount    Decimal  @default(0)
+  distributedAmount Decimal @default(0)
+  commitmentDate  DateTime
+
+  // Status
+  status          String   @default("active") // active, fulfilled, defaulted
+
+  // Metadata
+  privacyTier     PrivacyTier @default(HIGHLY_SENSITIVE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([personId])
+  @@index([organizationId])
+  @@index([fundName])
+}
+
+// CONVERSATIONS - Meetings, emails, calls
+model Conversation {
+  id              String   @id @default(cuid())
+
+  // What happened
+  title           String
+  summary         String?  @db.Text
+  transcript      String?  @db.Text // From Fireflies
+  medium          ConversationMedium @default(MEETING)
+
+  // When
+  conversationDate DateTime
+  duration        Int?     // Minutes
+
+  // Who
+  participants    Person[] @relation("ConversationParticipants")
+  organizations   Organization[] @relation("ConversationOrganizations")
+  deals           Deal[] @relation("ConversationDeals")
+
+  // Source
+  sourceType      String   // "fireflies", "email", "manual", "imported"
+  sourceId        String?  // External ID from source system
+  sourceUrl       String?
+
+  // Metadata
+  privacyTier     PrivacyTier @default(INTERNAL)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // AI-extracted facts
+  facts           Fact[]
+  tasks           Task[]
+
+  @@index([conversationDate])
+  @@index([sourceType, sourceId])
+}
+
+// TASKS - Action items and follow-ups
+model Task {
+  id              String   @id @default(cuid())
+
+  // Task details
+  title           String
+  description     String?  @db.Text
+  status          TaskStatus @default(OPEN)
+  priority        Priority @default(MEDIUM)
+
+  // Assignments
+  assignedToPerson Person? @relation(fields: [assignedToPersonId], references: [id])
+  assignedToPersonId String?
+
+  // Context
+  relatedOrganization Organization? @relation(fields: [relatedOrganizationId], references: [id])
+  relatedOrganizationId String?
+  relatedDeal     Deal?    @relation(fields: [relatedDealId], references: [id])
+  relatedDealId   String?
+  sourceConversation Conversation? @relation(fields: [sourceConversationId], references: [id])
+  sourceConversationId String?
+
+  // Timing
+  dueDate         DateTime?
+  completedAt     DateTime?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([assignedToPersonId])
+}
+
+// FACTS - Atomic knowledge units with provenance
+model Fact {
+  id              String   @id @default(cuid())
+
+  // What entity this fact is about
+  personId        String?
+  person          Person?  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealId          String?
+  deal            Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+
+  // The fact itself
+  factType        String   // "metric", "note", "risk", "opportunity", "relationship", etc.
+  key             String   // "MRR", "team_size", "burn_rate", "notes", etc.
+  value           String   @db.Text // JSON or text value
+
+  // Provenance (CRITICAL for trust)
+  sourceType      String   // "fireflies", "email", "enrichment_api", "manual", "ai_extracted"
+  sourceId        String?  // External ID
+  sourceUrl       String?
+  confidence      Decimal  @default(1.0) // 0.0-1.0 for AI-extracted facts
+
+  // Versioning
+  validFrom       DateTime @default(now())
+  validUntil      DateTime? // null = current
+  replacedByFact  String?  // ID of fact that superseded this one
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  createdBy       String?  // User ID who created/confirmed this
+
+  @@index([personId, factType, key])
+  @@index([organizationId, factType, key])
+  @@index([dealId, factType, key])
+  @@index([sourceType, sourceId])
+  @@index([validFrom, validUntil])
+}
+
+// TIME-SERIES METRICS - For tracking organization performance
+model OrganizationMetric {
+  id              String   @id @default(cuid())
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // The metric
+  metricType      String   // "MRR", "ARR", "burn_rate", "runway", "team_size", etc.
+  value           Decimal
+  unit            String?  // "USD", "months", "people", etc.
+
+  // Time
+  snapshotDate    DateTime // When this metric was measured
+
+  // Provenance
+  sourceType      String
+  sourceId        String?
+  confidence      Decimal  @default(1.0)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, metricType, snapshotDate])
+  @@index([organizationId, metricType, snapshotDate])
+}
+
+// TIME-SERIES METRICS - For tracking investment performance
+model InvestmentMetric {
+  id              String   @id @default(cuid())
+
+  investmentId    String
+  investment      Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  // The metric
+  metricType      String   // "valuation", "ownership_diluted", "current_value", etc.
+  value           Decimal
+  unit            String?  // "USD", "percent", etc.
+
+  // Time
+  snapshotDate    DateTime // When this metric was measured
+
+  // Provenance
+  sourceType      String
+  sourceId        String?
+  confidence      Decimal  @default(1.0)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+
+  @@unique([investmentId, metricType, snapshotDate])
+  @@index([investmentId, metricType, snapshotDate])
+}
+
+// ============================================================================
+// GRAPH DATABASE PATTERN - Relationship Examples
+// ============================================================================
+//
+// The Relationship model enables a flexible, evolving knowledge graph.
+// The AI agent can identify and create new relationship types organically.
+//
+// COMMON RELATIONSHIP TYPES (examples, not exhaustive):
+//
+// Person → Organization:
+//   - WORKS_AT (properties: { role: "CEO", startDate: "2024-01-01" })
+//   - FOUNDED (properties: { cofounderCount: 3, equityPercent: 25 })
+//   - ADVISED (properties: { title: "Technical Advisor", compensationType: "equity" })
+//   - INVESTED_IN (properties: { checkSize: 50000, round: "seed" })
+//
+// Person → Person:
+//   - KNOWS (properties: { context: "college roommates", strength: 0.9 })
+//   - INTRODUCED_BY (properties: { introducerName: "Alice", date: "2024-03-15" })
+//   - MENTORED (properties: { duration: "2 years" })
+//   - WORKED_WITH (properties: { company: "Acme Corp", years: 3 })
+//
+// Organization → Organization:
+//   - PARTNERED_WITH (properties: { partnershipType: "integration", startDate: "2024-01-01" })
+//   - ACQUIRED_BY (properties: { acquisitionDate: "2025-06-01", amount: 50000000 })
+//   - COMPETED_AGAINST (properties: { vertical: "DeFi", intensity: 0.8 })
+//   - SPUN_OUT_FROM (properties: { spinoutDate: "2023-05-01" })
+//
+// Organization → Deal:
+//   - PREVIOUS_INVESTOR_IN (properties: { round: "Series A", leadInvestor: false })
+//   - COMPETING_BID (properties: { theirValuation: 100000000 })
+//
+// Deal → Deal:
+//   - FOLLOW_ON_FROM (properties: { previousRound: "Seed", monthsBetween: 18 })
+//   - COMPETING_DEAL (properties: { sameMarket: true })
+//
+// QUERYING EXAMPLES:
+//
+// 1. Find all people who work at an organization:
+//    Relationship.findMany({
+//      where: {
+//        targetType: "Organization",
+//        targetId: orgId,
+//        relationshipType: "WORKS_AT",
+//        isActive: true
+//      }
+//    })
+//
+// 2. Find warm intro paths (Person → Person → Organization):
+//    - Get all people user KNOWS
+//    - For each, get who they WORK_AT or FOUNDED
+//    - Return paths with relationship strength scores
+//
+// 3. Find co-investment network:
+//    - Get all Person who INVESTED_IN same Deal
+//    - Create CO_INVESTED_WITH relationships
+//    - Build investor syndicate graph
+//
+// 4. AI-driven relationship discovery:
+//    - Parse conversation: "Sarah introduced me to John at Acme Corp"
+//    - AI extracts:
+//      * Person(Sarah) -INTRODUCED-> Person(User)
+//      * Person(John) -WORKS_AT-> Organization(Acme Corp)
+//      * Creates sourceOfTruth: "ai_extracted", sourceId: conversationId
+//
+// ============================================================================
