@@ -94,13 +94,15 @@ export async function GET() {
  * POST - Sync data from Attio
  * Query params:
  * - type: "companies" | "people" | "all" (default: "all")
- * - mode: "preview" | "sync" (default: "sync")
+ * - limit: number of records to fetch (default: 100, max: 500)
+ * - linkedOnly: "true" to only import people linked to existing orgs (default: true)
  */
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const syncType = searchParams.get('type') || 'all';
-    const mode = searchParams.get('mode') || 'sync';
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
+    const linkedOnly = searchParams.get('linkedOnly') !== 'false'; // Default true
 
     const client = createAttioClient();
     const result: SyncResult = {
@@ -113,34 +115,26 @@ export async function POST(request: NextRequest) {
       select: { id: true, name: true, domain: true, canonicalKey: true }
     });
 
-    // Always fetch companies first to populate the cache for person lookups
-    const companies = await client.listCompanies();
+    // Fetch companies (with limit to prevent timeout)
+    const companies = await client.listCompanies(limit);
 
     // Sync companies (enrich existing only)
     if (syncType === 'companies' || syncType === 'all') {
       result.companies.total = companies.length;
-
-      if (mode === 'sync') {
-        await enrichCompanies(companies, existingOrgs, result.companies);
-      }
+      await enrichCompanies(companies, existingOrgs, result.companies);
     }
 
     // Sync people (create and link to organizations)
     if (syncType === 'people' || syncType === 'all') {
-      const people = await client.listPeople();
+      const people = await client.listPeople(limit);
       result.people.total = people.length;
-
-      if (mode === 'sync') {
-        await syncPeople(people, existingOrgs, client, result.people);
-      }
+      await syncPeople(people, existingOrgs, client, result.people, linkedOnly);
     }
 
     return NextResponse.json({
       success: true,
-      mode,
-      message: mode === 'sync'
-        ? 'Sync completed. Only existing organizations were enriched.'
-        : 'Preview mode - no changes made.',
+      limit,
+      message: `Sync completed. Processed up to ${limit} companies and ${limit} people.`,
       result,
     });
   } catch (error) {
@@ -247,12 +241,14 @@ async function enrichCompanies(
 
 /**
  * Sync people from Attio - create people and link to organizations
+ * If linkedOnly=true, only import people whose company matches an existing org
  */
 async function syncPeople(
   people: AttioPerson[],
   existingOrgs: Array<{ id: string; name: string; domain: string | null; canonicalKey: string }>,
   client: AttioClient,
-  result: SyncResult['people']
+  result: SyncResult['people'],
+  linkedOnly: boolean = true
 ) {
   for (const person of people) {
     const fullName = person.fullName ||
@@ -264,6 +260,22 @@ async function syncPeople(
     }
 
     try {
+      // First check if this person can be linked to an existing org
+      let matchedOrg: { id: string; name: string } | null = null;
+
+      if (person.companyRecordId) {
+        const attioCompany = await client.getCompanyById(person.companyRecordId);
+        if (attioCompany) {
+          matchedOrg = findMatchingOrg(attioCompany, existingOrgs);
+        }
+      }
+
+      // If linkedOnly mode and no matching org, skip this person
+      if (linkedOnly && !matchedOrg) {
+        result.skipped++;
+        continue;
+      }
+
       // Create canonical key from email or name
       const canonicalKey = person.email
         ? person.email.toLowerCase()
@@ -331,19 +343,10 @@ async function syncPeople(
         result.created++;
       }
 
-      // Try to link person to organization via their company
-      if (person.companyRecordId) {
-        // Look up the company from Attio cache
-        const attioCompany = await client.getCompanyById(person.companyRecordId);
-
-        if (attioCompany) {
-          const org = findMatchingOrg(attioCompany, existingOrgs);
-
-          if (org) {
-            await linkPersonToOrg(existingPerson.id, org.id, person.jobTitle);
-            result.linked++;
-          }
-        }
+      // Link person to their organization
+      if (matchedOrg) {
+        await linkPersonToOrg(existingPerson.id, matchedOrg.id, person.jobTitle);
+        result.linked++;
       }
     } catch (error) {
       result.errors.push(`Failed to sync person ${fullName}: ${error}`);
