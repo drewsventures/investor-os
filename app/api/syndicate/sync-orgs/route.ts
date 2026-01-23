@@ -88,9 +88,8 @@ export async function POST() {
               name: company.companyName,
               canonicalKey,
               organizationType: 'PORTFOLIO',
-              privacyTier: 'MEDIUM',
+              privacyTier: 'INTERNAL',
               industry: company.market || undefined,
-              sourcePlatform: 'angellist',
             },
           });
           results.organizationsCreated++;
