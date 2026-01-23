@@ -2,6 +2,8 @@
  * People Enrichment API
  * POST - Enrich people profiles with public data (LinkedIn, etc.)
  * GET - Preview people that need enrichment
+ *
+ * Uses Claude with web search to find real, publicly available information
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,7 +11,7 @@ import { prisma } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes for web searches
 
 interface EnrichmentResult {
   total: number;
@@ -107,14 +109,14 @@ export async function GET() {
 }
 
 /**
- * POST - Enrich people with public data
+ * POST - Enrich people with public data using Claude with web search
  * Query params:
- * - limit: number of people to enrich (default: 10)
+ * - limit: number of people to enrich (default: 5)
  */
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '5'), 20);
 
     const anthropic = new Anthropic();
 
@@ -162,53 +164,57 @@ export async function POST(request: NextRequest) {
       const currentRole = (rel?.properties as any)?.role;
 
       try {
-        // Use Claude to search and extract public info
-        const searchQuery = `${person.fullName} ${companyName} LinkedIn`;
-
+        // Use Claude with web search to find public info
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
+          max_tokens: 4096,
+          tools: [
+            {
+              type: 'web_search_20250305',
+              name: 'web_search',
+              max_uses: 3,
+            }
+          ],
           messages: [
             {
               role: 'user',
-              content: `Search for public professional information about "${person.fullName}" who works at "${companyName}".
+              content: `Find the LinkedIn profile and professional information for "${person.fullName}" who works at "${companyName}".
 
-I need you to find and return ONLY factual, publicly available information. Return a JSON object with these fields (use null if not found):
+Search for their LinkedIn profile and any public professional information. Then provide a JSON response with what you found.
 
+After searching, respond with ONLY this JSON format:
 {
-  "linkedInUrl": "full LinkedIn profile URL if found",
-  "jobTitle": "their current job title/role",
-  "city": "city they're based in",
-  "country": "country code (2 letter, e.g., US, UK)",
-  "twitterHandle": "Twitter/X handle without @",
-  "summary": "brief 1-sentence professional summary"
+  "linkedInUrl": "the exact LinkedIn profile URL (e.g., https://linkedin.com/in/username) or null",
+  "jobTitle": "their job title/role at ${companyName} or null",
+  "city": "city they're based in or null",
+  "country": "2-letter country code (US, UK, etc.) or null",
+  "twitterHandle": "Twitter/X handle without @ or null"
 }
 
 Important:
-- Only return information you're confident is accurate
-- LinkedIn URLs should be in format: https://linkedin.com/in/username
-- Return ONLY the JSON object, no other text`
+- Only include LinkedIn URLs you actually found and verified
+- The LinkedIn URL must be a real, specific profile URL
+- Return null for any field you couldn't verify`
             }
           ],
         });
 
-        // Parse the response
-        const content = response.content[0];
-        if (content.type !== 'text') {
-          result.skipped++;
-          continue;
+        // Find the final text response (after tool use)
+        let enrichmentData = null;
+        for (const block of response.content) {
+          if (block.type === 'text') {
+            try {
+              const jsonMatch = block.text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                enrichmentData = JSON.parse(jsonMatch[0]);
+              }
+            } catch {
+              // Try next block
+            }
+          }
         }
 
-        let enrichmentData;
-        try {
-          // Extract JSON from response
-          const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            result.skipped++;
-            continue;
-          }
-          enrichmentData = JSON.parse(jsonMatch[0]);
-        } catch {
+        if (!enrichmentData) {
           result.skipped++;
           continue;
         }
@@ -217,19 +223,19 @@ Important:
         const updateData: Record<string, string> = {};
         const fieldsUpdated: string[] = [];
 
-        if (!person.linkedInUrl && enrichmentData.linkedInUrl) {
+        if (!person.linkedInUrl && enrichmentData.linkedInUrl && enrichmentData.linkedInUrl !== 'null') {
           updateData.linkedInUrl = enrichmentData.linkedInUrl;
           fieldsUpdated.push('linkedInUrl');
         }
-        if (!person.city && enrichmentData.city) {
+        if (!person.city && enrichmentData.city && enrichmentData.city !== 'null') {
           updateData.city = enrichmentData.city;
           fieldsUpdated.push('city');
         }
-        if (!person.country && enrichmentData.country) {
+        if (!person.country && enrichmentData.country && enrichmentData.country !== 'null') {
           updateData.country = enrichmentData.country;
           fieldsUpdated.push('country');
         }
-        if (!person.twitterHandle && enrichmentData.twitterHandle) {
+        if (!person.twitterHandle && enrichmentData.twitterHandle && enrichmentData.twitterHandle !== 'null') {
           updateData.twitterHandle = enrichmentData.twitterHandle;
           fieldsUpdated.push('twitterHandle');
         }
@@ -243,7 +249,7 @@ Important:
         }
 
         // Update role in relationship if found and current is Unknown
-        if (enrichmentData.jobTitle && (!currentRole || currentRole === 'Unknown') && rel) {
+        if (enrichmentData.jobTitle && enrichmentData.jobTitle !== 'null' && (!currentRole || currentRole === 'Unknown') && rel) {
           await prisma.relationship.update({
             where: { id: rel.id },
             data: {
