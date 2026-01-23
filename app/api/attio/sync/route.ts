@@ -298,23 +298,23 @@ async function syncPeople(
       // First check if this person can be linked to an existing org
       let matchedOrg: { id: string; name: string } | null = null;
 
-      // Try 1: Match via Attio company reference
-      if (person.companyRecordId) {
+      // Try 1: Match by email domain first (fastest - e.g., derek@cub3.com -> "Cub3")
+      if (person.email) {
+        matchedOrg = findOrgByEmailDomain(person.email, existingOrgs);
+      }
+
+      // If linkedOnly mode, skip company API lookups (too slow) - email domain is sufficient
+      if (linkedOnly && !matchedOrg) {
+        result.skipped++;
+        continue;
+      }
+
+      // Try 2: Match via Attio company reference (slower - only when not linkedOnly)
+      if (!matchedOrg && !linkedOnly && person.companyRecordId) {
         const attioCompany = await client.getCompanyById(person.companyRecordId);
         if (attioCompany) {
           matchedOrg = findMatchingOrg(attioCompany, existingOrgs);
         }
-      }
-
-      // Try 2: Match by email domain (e.g., derek@cub3.com -> "Cub3")
-      if (!matchedOrg && person.email) {
-        matchedOrg = findOrgByEmailDomain(person.email, existingOrgs);
-      }
-
-      // If linkedOnly mode and no matching org, skip this person
-      if (linkedOnly && !matchedOrg) {
-        result.skipped++;
-        continue;
       }
 
       // Create canonical key from email or name
