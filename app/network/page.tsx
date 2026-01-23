@@ -139,7 +139,7 @@ export default function NetworkPage() {
 
   // Get unique countries for filter
   const uniqueCountries = Array.from(
-    new Set(contacts.map(c => c.country).filter(Boolean))
+    new Set(contacts.map(c => c.country).filter((c): c is string => Boolean(c)))
   ).sort();
 
   const handleApplyFilters = () => {
@@ -425,13 +425,13 @@ export default function NetworkPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      {contact.email && <Mail className="w-4 h-4 text-blue-500" title="Email" />}
-                      {contact.phone && <Phone className="w-4 h-4 text-green-500" title="Phone" />}
+                      {contact.email && <span title="Email"><Mail className="w-4 h-4 text-blue-500" /></span>}
+                      {contact.phone && <span title="Phone"><Phone className="w-4 h-4 text-green-500" /></span>}
                       {contact.telegramHandle && (
-                        <MessageCircle className="w-4 h-4 text-teal-500" title="Telegram" />
+                        <span title="Telegram"><MessageCircle className="w-4 h-4 text-teal-500" /></span>
                       )}
                       {contact.twitterHandle && (
-                        <Twitter className="w-4 h-4 text-sky-500" title="Twitter" />
+                        <span title="Twitter"><Twitter className="w-4 h-4 text-sky-500" /></span>
                       )}
                     </div>
                   </td>

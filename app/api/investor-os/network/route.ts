@@ -131,9 +131,10 @@ export async function GET(request: NextRequest) {
     // Geography breakdown
     const geographyMap = new Map<string, number>();
     filteredPeople.forEach(person => {
-      if (person.country) {
-        const count = geographyMap.get(person.country) || 0;
-        geographyMap.set(person.country, count + 1);
+      const country = (person as any).country;
+      if (country) {
+        const count = geographyMap.get(country) || 0;
+        geographyMap.set(country, count + 1);
       }
     });
     const byGeography = Array.from(geographyMap.entries())
@@ -144,9 +145,9 @@ export async function GET(request: NextRequest) {
     const ownerMap = new Map<string, { ownerId: string; ownerName: string; count: number }>();
     await Promise.all(
       filteredPeople
-        .filter(person => person.currentOwner)
+        .filter(person => (person as any).currentOwner)
         .map(async (person) => {
-          const ownerId = person.currentOwner!;
+          const ownerId = (person as any).currentOwner!;
           if (!ownerMap.has(ownerId)) {
             const owner = await prisma.person.findUnique({
               where: { id: ownerId },
@@ -171,15 +172,15 @@ export async function GET(request: NextRequest) {
       : 0;
 
     // Contact method counts
-    const withTelegram = filteredPeople.filter(p => p.telegramHandle).length;
-    const withTwitter = filteredPeople.filter(p => p.twitterHandle).length;
+    const withTelegram = filteredPeople.filter(p => (p as any).telegramHandle).length;
+    const withTwitter = filteredPeople.filter(p => (p as any).twitterHandle).length;
 
     // Get team members
     // TODO: In Phase 2, implement proper team member retrieval via TEAM_MEMBER relationships
     const teamMembers = await prisma.person.findMany({
       where: {
-        currentOwner: { not: null } // Temporary: anyone who owns a contact is considered team
-      },
+        currentOwner: { not: null }
+      } as any, // Type assertion needed until prisma generate is run
       select: {
         id: true,
         fullName: true
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
     // Team coverage (simplified for Phase 1)
     const teamCoverage = await Promise.all(
       teamMembers.map(async (member) => {
-        const contacts = filteredPeople.filter(p => p.currentOwner === member.id);
+        const contacts = filteredPeople.filter(p => (p as any).currentOwner === member.id);
         const strongConnections = contacts.filter(p =>
           p.relationshipStrength !== null && p.relationshipStrength >= 0.7
         ).length;
