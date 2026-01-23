@@ -53,8 +53,7 @@ export async function GET(request: NextRequest) {
         },
         metrics: {
           orderBy: { snapshotDate: 'desc' },
-          take: 1, // Just latest for each metric type
-          distinct: ['metricType']
+          take: 10
         },
         _count: {
           select: {
