@@ -32,23 +32,6 @@ export async function GET(request: NextRequest) {
 
     const organizations = await prisma.organization.findMany({
       where,
-      include: {
-        deals: {
-          select: {
-            id: true,
-            name: true,
-            stage: true
-          },
-          orderBy: { createdAt: 'desc' }
-        },
-        _count: {
-          select: {
-            facts: true,
-            conversations: true,
-            tasks: true
-          }
-        }
-      },
       orderBy: [
         { organizationType: 'asc' },
         { name: 'asc' }
@@ -60,17 +43,13 @@ export async function GET(request: NextRequest) {
     const prospectCount = organizations.filter(o => o.organizationType === 'PROSPECT').length;
     const lpCount = organizations.filter(o => o.organizationType === 'LP').length;
 
-    const activeDeals = organizations
-      .flatMap(o => o.deals)
-      .filter(d => d.stage && !['PASSED', 'PORTFOLIO'].includes(d.stage));
-
     const summary = {
       totalOrganizations: organizations.length,
       portfolioCompanies: portfolioCount,
       prospects: prospectCount,
       lps: lpCount,
       totalInvested: 0,
-      activeDeals: activeDeals.length,
+      activeDeals: 0,
       industryBreakdown: getIndustryBreakdown(organizations),
       stageBreakdown: getStageBreakdown(organizations)
     };
