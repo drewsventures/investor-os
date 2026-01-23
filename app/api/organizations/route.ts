@@ -6,8 +6,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { resolveOrCreateOrganization, type OrganizationInput } from '@/lib/normalization/entity-resolver';
-import { extractDomain } from '@/lib/normalization/canonical-keys';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,58 +62,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST temporarily disabled - use direct prisma calls
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      name,
-      domain,
-      website,
-      legalName,
-      description,
-      organizationType,
-      industry,
-      stage,
-      logoUrl,
-      privacyTier
-    } = body;
-
-    // Validate required fields
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-    }
-
-    // Extract domain from website if not provided
-    const finalDomain = domain || (website ? extractDomain(website) : null);
-
-    const input: OrganizationInput = {
-      name,
-      domain: finalDomain,
-      website,
-      legalName,
-      description,
-      organizationType: organizationType || 'PROSPECT',
-      industry,
-      stage,
-      logoUrl,
-      privacyTier: privacyTier || 'INTERNAL'
-    };
-
-    // Use entity resolver for automatic deduplication
-    const result = await resolveOrCreateOrganization(input, true);
-
-    return NextResponse.json({
-      organization: result.organization,
-      isNew: result.isNew,
-      wasUpdated: result.wasUpdated
-    }, { status: result.isNew ? 201 : 200 });
-  } catch (error) {
-    console.error('Failed to create/update organization:', error);
-    return NextResponse.json(
-      { error: 'Failed to create/update organization' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ error: 'POST temporarily disabled' }, { status: 501 });
 }
 
 // Helper functions
