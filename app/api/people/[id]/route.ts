@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
 
     const person = await prisma.person.findUnique({
       where: { id },
@@ -170,10 +170,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
     const body = await request.json();
 
     const {
@@ -229,10 +229,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
 
     await prisma.person.delete({
       where: { id }

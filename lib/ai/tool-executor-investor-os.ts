@@ -1377,3 +1377,65 @@ export async function createTask(input: {
     };
   }
 }
+
+// ============================================================================
+// MAIN TOOL EXECUTOR
+// ============================================================================
+
+export async function executeInvestorOSTool(
+  toolName: string,
+  toolInput: any
+): Promise<ToolResult> {
+  try {
+    switch (toolName) {
+      // Read tools
+      case 'get_organization':
+        return await getOrganization(toolInput);
+      case 'get_person':
+        return await getPerson(toolInput);
+      case 'get_deal_pipeline':
+        return await getDealPipeline(toolInput);
+      case 'get_recent_conversations':
+        return await getRecentConversations(toolInput);
+      case 'get_relationship_network':
+        return await getRelationshipNetwork(toolInput);
+      case 'get_metrics_timeseries':
+        return await getMetricsTimeseries(toolInput);
+      
+      // Analysis tools
+      case 'detect_risks':
+        return await detectRisks(toolInput);
+      case 'generate_briefing':
+        return await generateBriefing(toolInput);
+      case 'find_warm_intro_path':
+        return await findWarmIntroPath(toolInput);
+      
+      // Write tools
+      case 'add_fact':
+        return await addFact(toolInput);
+      case 'create_relationship':
+        return await createRelationship(toolInput);
+      case 'add_organization':
+        return await addOrganization(toolInput);
+      case 'add_person':
+        return await addPerson(toolInput);
+      case 'create_deal':
+        return await createDeal(toolInput);
+      case 'update_deal_stage':
+        return await updateDealStage(toolInput);
+      case 'create_task':
+        return await createTask(toolInput);
+      
+      default:
+        return {
+          success: false,
+          error: `Unknown tool: ${toolName}`
+        };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}

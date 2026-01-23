@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
 
     const organization = await prisma.organization.findUnique({
       where: { id },
@@ -172,10 +172,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
     const body = await request.json();
 
     const {
@@ -232,10 +232,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await segmentData.params;
 
     // Soft delete: we'll just set privacy tier to indicate it's archived
     // Or we could add an isActive field to the schema

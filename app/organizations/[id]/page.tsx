@@ -96,7 +96,7 @@ interface Organization {
   relationships: any[];
 }
 
-export default function OrganizationDetailPage({ params }: { params: { id: string } }) {
+export default function OrganizationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');

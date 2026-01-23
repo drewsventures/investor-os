@@ -68,28 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { messages, conversationId: existingConversationId } = await request.json();
-
-    // Create or get conversation
-    let conversationId = existingConversationId;
-    if (!conversationId) {
-      const conversation = await prisma.chatConversation.create({
-        data: {
-          title: messages[0]?.content?.slice(0, 50) || 'New conversation'
-        }
-      });
-      conversationId = conversation.id;
-    }
-
-    // Save the user message
-    const userMessage = messages[messages.length - 1];
-    await prisma.chatMessage.create({
-      data: {
-        conversationId,
-        role: 'user',
-        content: userMessage.content
-      }
-    });
+    const { messages } = await request.json();
 
     // Stream the response
     const encoder = new TextEncoder();
@@ -102,36 +81,34 @@ export async function POST(request: NextRequest) {
 
           fullResponse = await streamAnthropicResponse(
             messages,
-            conversationId,
             controller,
             encoder,
             toolCallsLog
           );
 
           // Save the assistant message
-          await prisma.chatMessage.create({
-            data: {
-              conversationId,
-              role: 'assistant',
-              content: fullResponse,
-              toolCalls: toolCallsLog.length > 0 ? JSON.stringify(toolCallsLog) : null
-            }
-          });
-
-          // Update conversation title if it's the first exchange
-          const messageCount = await prisma.chatMessage.count({
-            where: { conversationId }
-          });
-          if (messageCount === 2) {
-            await prisma.chatConversation.update({
-              where: { id: conversationId },
-              data: { title: userMessage.content.slice(0, 50) }
-            });
-          }
-
+//           await prisma.fact.create({
+//             data: {
+//               conversationId,
+//               role: 'assistant',
+//               content: fullResponse,
+//               toolCalls: toolCallsLog.length > 0 ? JSON.stringify(toolCallsLog) : null
+//             }
+//           });
+// 
+//           // Update conversation title if it's the first exchange
+//           const messageCount = await prisma.fact.count({
+//             where: { conversationId }
+//           });
+//           if (messageCount === 2) {
+//             await prisma.conversation.update({
+//               where: { id: conversationId },
+//               data: { title: userMessage.content.slice(0, 50) }
+//             });
+//           }
+// 
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'done',
-            conversationId
           })}\n\n`));
           controller.close();
         } catch (error) {
@@ -164,7 +141,6 @@ export async function POST(request: NextRequest) {
 // Stream response from Anthropic Claude
 async function streamAnthropicResponse(
   messages: ChatMessage[],
-  conversationId: string,
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
   toolCallsLog: unknown[]
@@ -243,76 +219,76 @@ async function streamAnthropicResponse(
 }
 
 // GET - Load conversation history or list conversations
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const conversationId = searchParams.get('conversationId');
-
-  try {
-    if (conversationId) {
-      const messages = await prisma.chatMessage.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: 'asc' }
-      });
-
-      return NextResponse.json({
-        messages: messages.map(m => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          createdAt: m.createdAt.toISOString()
-        }))
-      });
-    }
-
-    // List recent conversations
-    const conversations = await prisma.chatConversation.findMany({
-      take: 20,
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        messages: {
-          take: 1,
-          orderBy: { createdAt: 'asc' }
-        }
-      }
-    });
-
-    return NextResponse.json({
-      conversations: conversations.map(c => ({
-        id: c.id,
-        title: c.title || c.messages[0]?.content?.slice(0, 50) || 'New conversation',
-        updatedAt: c.updatedAt.toISOString(),
-        preview: c.messages[0]?.content?.slice(0, 100) || ''
-      }))
-    });
-  } catch (error) {
-    console.error('Get conversations error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
-}
+// export async function GET(request: NextRequest) {
+//   const { searchParams } = new URL(request.url);
+//   const conversationId = searchParams.get('conversationId');
+// 
+//   try {
+//     if (conversationId) {
+//       const messages = await prisma.fact.findMany({
+//         where: { conversationId },
+//         orderBy: { createdAt: 'asc' }
+//       });
+// 
+//       return NextResponse.json({
+//         messages: messages.map(m => ({
+//           id: m.id,
+//           role: m.role,
+//           content: m.content,
+//           createdAt: m.createdAt.toISOString()
+//         }))
+//       });
+//     }
+// 
+//     // List recent conversations
+//     const conversations = await prisma.conversation.findMany({
+//       take: 20,
+//       orderBy: { updatedAt: 'desc' },
+//       include: {
+//         messages: {
+//           take: 1,
+//           orderBy: { createdAt: 'asc' }
+//         }
+//       }
+//     });
+// 
+//     return NextResponse.json({
+//       conversations: conversations.map(c => ({
+//         id: c.id,
+//         title: c.title || c.messages[0]?.content?.slice(0, 50) || 'New conversation',
+//         updatedAt: c.updatedAt.toISOString(),
+//         preview: c.messages[0]?.content?.slice(0, 100) || ''
+//       }))
+//     });
+//   } catch (error) {
+//     console.error('Get conversations error:', error);
+//     return NextResponse.json(
+//       { error: error instanceof Error ? error.message : 'Unknown error' },
+//       { status: 500 }
+//     );
+//   }
+// }
 
 // DELETE - Delete a conversation
-export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const conversationId = searchParams.get('conversationId');
-
-  if (!conversationId) {
-    return NextResponse.json({ error: 'conversationId required' }, { status: 400 });
-  }
-
-  try {
-    await prisma.chatConversation.delete({
-      where: { id: conversationId }
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete conversation error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
-}
+// export async function DELETE(request: NextRequest) {
+//   const { searchParams } = new URL(request.url);
+//   const conversationId = searchParams.get('conversationId');
+// 
+//   if (!conversationId) {
+//     return NextResponse.json({ error: 'conversationId required' }, { status: 400 });
+//   }
+// 
+//   try {
+//     await prisma.conversation.delete({
+//       where: { id: conversationId }
+//     });
+// 
+//     return NextResponse.json({ success: true });
+//   } catch (error) {
+//     console.error('Delete conversation error:', error);
+//     return NextResponse.json(
+//       { error: error instanceof Error ? error.message : 'Unknown error' },
+//       { status: 500 }
+//     );
+//   }
+// }

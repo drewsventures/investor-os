@@ -69,7 +69,7 @@ interface Person {
   relationships: any[];
 }
 
-export default function PersonDetailPage({ params }: { params: { id: string } }) {
+export default function PersonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'conversations' | 'tasks' | 'lp'>('overview');
