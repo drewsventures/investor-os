@@ -174,6 +174,41 @@ function findMatchingOrg(
 }
 
 /**
+ * Find matching organization by person's email domain
+ * Matches email domain to org name (e.g., derek@cub3.com -> "Cub3")
+ */
+function findOrgByEmailDomain(
+  email: string | null,
+  existingOrgs: Array<{ id: string; name: string; domain: string | null; canonicalKey: string }>
+): { id: string; name: string } | null {
+  if (!email) return null;
+
+  // Extract domain from email (e.g., "cub3.com" from "derek@cub3.com")
+  const emailDomain = email.split('@')[1]?.toLowerCase();
+  if (!emailDomain) return null;
+
+  // Extract the main part of the domain (e.g., "cub3" from "cub3.com")
+  const domainParts = emailDomain.split('.');
+  const mainDomain = domainParts[0]; // First part before .com/.io/etc
+
+  // Try to match by domain
+  const byDomain = existingOrgs.find(o =>
+    o.domain?.toLowerCase().includes(mainDomain) ||
+    o.canonicalKey?.includes(mainDomain)
+  );
+  if (byDomain) return { id: byDomain.id, name: byDomain.name };
+
+  // Try to match by org name containing the domain
+  const byName = existingOrgs.find(o => {
+    const orgNameLower = o.name.toLowerCase().replace(/\s+/g, '');
+    return orgNameLower.includes(mainDomain) || mainDomain.includes(orgNameLower);
+  });
+  if (byName) return { id: byName.id, name: byName.name };
+
+  return null;
+}
+
+/**
  * Enrich existing organizations with Attio data (no new org creation)
  */
 async function enrichCompanies(
@@ -263,11 +298,17 @@ async function syncPeople(
       // First check if this person can be linked to an existing org
       let matchedOrg: { id: string; name: string } | null = null;
 
+      // Try 1: Match via Attio company reference
       if (person.companyRecordId) {
         const attioCompany = await client.getCompanyById(person.companyRecordId);
         if (attioCompany) {
           matchedOrg = findMatchingOrg(attioCompany, existingOrgs);
         }
+      }
+
+      // Try 2: Match by email domain (e.g., derek@cub3.com -> "Cub3")
+      if (!matchedOrg && person.email) {
+        matchedOrg = findOrgByEmailDomain(person.email, existingOrgs);
       }
 
       // If linkedOnly mode and no matching org, skip this person
