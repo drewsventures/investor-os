@@ -172,7 +172,7 @@ export default function NetworkPage() {
             </p>
           </div>
           <Link
-            href="/investor-os/people/new"
+            href="/people/new"
             className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -362,7 +362,7 @@ export default function NetworkPage() {
               : 'Get started by adding your first contact'}
           </p>
           <Link
-            href="/investor-os/people/new"
+            href="/people/new"
             className="inline-flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600"
           >
             <Plus className="w-4 h-4" />
@@ -398,7 +398,7 @@ export default function NetworkPage() {
               {filteredContacts.map((contact) => (
                 <tr key={contact.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Link href={`/investor-os/people/${contact.id}`} className="flex items-center gap-3">
+                    <Link href={`/people/${contact.id}`} className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                         <span className="text-blue-600 font-medium">
                           {contact.firstName[0]}{contact.lastName[0]}
@@ -441,7 +441,7 @@ export default function NetworkPage() {
                         <div key={org.id} className="flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
                           <Link
-                            href={`/investor-os/organizations/${org.id}`}
+                            href={`/organizations/${org.id}`}
                             className="hover:text-blue-600"
                           >
                             {org.name}

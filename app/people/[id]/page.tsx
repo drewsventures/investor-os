@@ -82,7 +82,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
   const fetchPerson = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/investor-os/people/${id}`);
+      const response = await fetch(`/api/people/${id}`);
       const data = await response.json();
       setPerson(data);
     } catch (error) {
@@ -110,7 +110,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Person not found</h3>
-            <Link href="/investor-os/people" className="text-blue-600 hover:underline">
+            <Link href="/people" className="text-blue-600 hover:underline">
               Back to people
             </Link>
           </div>
@@ -125,7 +125,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
         {/* Header */}
         <div className="mb-6">
           <Link
-            href="/investor-os/people"
+            href="/people"
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -255,7 +255,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                       {person.organizations.map((org) => (
                         <Link
                           key={org.id}
-                          href={`/investor-os/organizations/${org.id}`}
+                          href={`/organizations/${org.id}`}
                           className="block bg-gray-50 rounded-lg p-4 hover:bg-gray-100"
                         >
                           <div className="flex items-center justify-between">
@@ -347,7 +347,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                     {person.organizations.map((org) => (
                       <Link
                         key={org.id}
-                        href={`/investor-os/organizations/${org.id}`}
+                        href={`/organizations/${org.id}`}
                         className="block bg-gray-50 rounded-lg p-4 hover:bg-gray-100"
                       >
                         <div className="flex items-center justify-between">

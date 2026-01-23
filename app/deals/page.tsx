@@ -247,12 +247,15 @@ export default function DealsPage() {
                           onDragStart={(e) => handleDragStart(e, deal.id)}
                           className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md cursor-move border border-gray-200 transition-shadow"
                         >
-                          <Link href={`/deals/${deal.id}`}>
-                            <div>
+                          <div>
+                            <Link href={`/deals/${deal.id}`}>
                               <h4 className="font-semibold text-gray-900 hover:text-blue-600 mb-1">
                                 {deal.name}
                               </h4>
-                              <p className="text-sm text-gray-600 mb-2">{deal.organization.name}</p>
+                            </Link>
+                            <Link href={`/organizations/${deal.organization.id}`} className="text-sm text-gray-600 hover:text-blue-600 mb-2 block">
+                              {deal.organization.name}
+                            </Link>
 
                               {deal.askAmount && (
                                 <div className="flex items-center gap-1 text-sm text-gray-700 mb-2">
@@ -282,8 +285,7 @@ export default function DealsPage() {
                                   {deal.factCount > 0 && <span>📊 {deal.factCount} facts</span>}
                                 </div>
                               )}
-                            </div>
-                          </Link>
+                          </div>
                         </div>
                       ))
                     )}
