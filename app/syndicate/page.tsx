@@ -368,16 +368,17 @@ export default function SyndicatePage() {
                         <div className={`w-2 h-2 rounded-full ${deal.isHostedDeal ? 'bg-orange-500' : 'bg-gray-400'}`} />
                         <div>
                           {deal.organizationId ? (
-                            <Link
+                            <a
                               href={`/organizations/${deal.organizationId}`}
-                              className="text-sm font-medium text-purple-600 hover:text-purple-800 underline cursor-pointer"
+                              style={{ color: '#7c3aed', textDecoration: 'underline', cursor: 'pointer' }}
+                              className="text-sm font-medium"
                             >
                               {deal.companyName} →
-                            </Link>
+                            </a>
                           ) : (
-                            <div className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-gray-900">
                               {deal.companyName}
-                            </div>
+                            </span>
                           )}
                           {deal.fundName && (
                             <div className="text-xs text-gray-500 truncate max-w-[200px]">
