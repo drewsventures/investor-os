@@ -117,7 +117,7 @@ export default function OrganizationsPage() {
           </div>
           <Link
             href="/investor-os/organizations/new"
-            className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 flex items-center gap-2"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add Organization
@@ -223,7 +223,7 @@ export default function OrganizationsPage() {
           </p>
           <Link
             href="/investor-os/organizations/new"
-            className="inline-flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600"
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
             Add Organization
