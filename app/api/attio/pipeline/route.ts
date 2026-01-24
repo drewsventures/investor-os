@@ -79,9 +79,22 @@ function getTextValue(values: Record<string, any[]>, key: string): string | null
 
 // Helper to extract status from Attio entry
 function getStatusValue(values: Record<string, any[]>): string | null {
-  const arr = values['status'] || values['stage'];
-  if (!arr || arr.length === 0) return null;
-  return arr[0].status?.title || arr[0].option?.title || arr[0].value || null;
+  if (!values) return null;
+
+  // Try different possible status field names
+  const possibleKeys = ['status', 'stage', 'pipeline_stage', 'deal_stage'];
+  for (const key of possibleKeys) {
+    const arr = values[key];
+    if (arr && arr.length > 0) {
+      const first = arr[0];
+      // Try different value structures
+      if (first?.status?.title) return first.status.title;
+      if (first?.option?.title) return first.option.title;
+      if (first?.value) return first.value;
+      if (typeof first === 'string') return first;
+    }
+  }
+  return null;
 }
 
 // Helper to extract name from Attio record
@@ -172,17 +185,17 @@ export async function GET() {
     // Build preview data
     const previewEntries = entries.slice(0, 20).map(entry => {
       const company = companyMap.get(entry.parent_record_id);
-      const status = getStatusValue(entry.values);
+      const status = getStatusValue(entry.values || {});
 
       return {
-        entryId: entry.id.entry_id,
+        entryId: entry.id?.entry_id || 'unknown',
         companyRecordId: entry.parent_record_id,
         companyName: company?.name || 'Unknown',
         companyDomain: company?.domain,
         attioStatus: status,
         mappedStage: mapStatusToDealStage(status),
         createdAt: entry.created_at,
-        entryValues: Object.keys(entry.values),
+        entryValues: entry.values ? Object.keys(entry.values) : [],
       };
     });
 
@@ -204,7 +217,7 @@ export async function GET() {
       previewCount: previewEntries.length,
       entries: matchedEntries,
       existingOrgsCount: existingOrgs.length,
-      sampleStatuses: [...new Set(entries.map(e => getStatusValue(e.values)).filter(Boolean))],
+      sampleStatuses: [...new Set(entries.map(e => getStatusValue(e.values || {})).filter(Boolean))],
     });
   } catch (error) {
     console.error('Failed to preview deal pipeline:', error);
