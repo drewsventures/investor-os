@@ -43,6 +43,9 @@ export async function GET(
           where: { validUntil: null },
           orderBy: { validFrom: 'desc' }
         },
+        stageHistory: {
+          orderBy: { transitionDate: 'desc' }
+        },
         investment: true
       }
     });
@@ -101,6 +104,16 @@ export async function PATCH(
       stageChangeNote
     } = body;
 
+    // Get current deal to check for stage change
+    const currentDeal = await prisma.deal.findUnique({
+      where: { id },
+      select: { stage: true, createdAt: true }
+    });
+
+    if (!currentDeal) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
+
     // Build update data
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -117,15 +130,43 @@ export async function PATCH(
       updateData.actualCloseDate = actualCloseDate ? new Date(actualCloseDate) : null;
     }
 
+    // Track stage history if stage is changing
+    if (stage !== undefined && stage !== currentDeal.stage) {
+      // Get last stage history to calculate days in previous stage
+      const lastHistory = await prisma.dealStageHistory.findFirst({
+        where: { dealId: id },
+        orderBy: { transitionDate: 'desc' }
+      });
+
+      const daysInPreviousStage = lastHistory
+        ? Math.floor((Date.now() - new Date(lastHistory.transitionDate).getTime()) / (1000 * 60 * 60 * 24))
+        : Math.floor((Date.now() - new Date(currentDeal.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+
+      await prisma.dealStageHistory.create({
+        data: {
+          dealId: id,
+          fromStage: currentDeal.stage,
+          toStage: stage,
+          daysInPreviousStage,
+          triggeredBy: 'manual',
+          notes: stageChangeNote || null,
+        }
+      });
+    }
+
     const deal = await prisma.deal.update({
       where: { id },
       data: updateData,
       include: {
-        organization: true
+        organization: true,
+        stageHistory: {
+          orderBy: { transitionDate: 'desc' },
+          take: 5
+        }
       }
     });
 
-    // If stage changed and note provided, add as fact
+    // If stage changed and note provided, also add as fact for searchability
     if (stage !== undefined && stageChangeNote) {
       await prisma.fact.create({
         data: {
