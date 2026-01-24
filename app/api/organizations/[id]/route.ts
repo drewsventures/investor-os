@@ -26,6 +26,9 @@ export async function GET(
             facts: {
               where: { validUntil: null },
               orderBy: { validFrom: 'desc' }
+            },
+            stageHistory: {
+              orderBy: { transitionDate: 'asc' }
             }
           }
         },
@@ -155,12 +158,52 @@ export async function GET(
       });
     });
 
+    // Compute deal pipeline summary
+    const activeDeal = organization.deals.find(d =>
+      !['PASSED', 'PORTFOLIO'].includes(d.stage)
+    ) || organization.deals[0];
+
+    let dealPipelineSummary = null;
+    if (activeDeal) {
+      const stageHistory = (activeDeal as any).stageHistory || [];
+      const currentStageEntry = stageHistory.find((h: any) => h.toStage === activeDeal.stage);
+      const stagesReached = stageHistory.map((h: any) => h.toStage);
+
+      // Calculate days in current stage
+      const lastTransition = stageHistory[stageHistory.length - 1];
+      const daysInCurrentStage = lastTransition
+        ? Math.floor((Date.now() - new Date(lastTransition.transitionDate).getTime()) / (1000 * 60 * 60 * 24))
+        : Math.floor((Date.now() - new Date(activeDeal.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+
+      dealPipelineSummary = {
+        dealId: activeDeal.id,
+        currentStage: activeDeal.stage,
+        dealType: activeDeal.dealType,
+        sourceChannel: activeDeal.sourceChannel,
+        referralSource: activeDeal.referralSource,
+        daysInCurrentStage,
+        totalDaysInPipeline: Math.floor((Date.now() - new Date(activeDeal.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+        stagesReached,
+        stageHistory: stageHistory.map((h: any) => ({
+          fromStage: h.fromStage,
+          toStage: h.toStage,
+          transitionDate: h.transitionDate,
+          daysInPreviousStage: h.daysInPreviousStage,
+          notes: h.notes
+        })),
+        askAmount: activeDeal.askAmount,
+        expectedCloseDate: activeDeal.expectedCloseDate,
+        passReason: activeDeal.passReason
+      };
+    }
+
     const response = {
       ...organization,
       people: peopleWithRoles,
       relationships,
       factsByType,
-      metricsByType
+      metricsByType,
+      dealPipelineSummary
     };
 
     return NextResponse.json(response);

@@ -20,7 +20,10 @@ import {
   ArrowLeft,
   Calendar,
   DollarSign,
-  Sparkles
+  Sparkles,
+  GitBranch,
+  Clock,
+  ChevronRight
 } from 'lucide-react';
 import { InvestmentSummaryCard } from '@/components/investor-os/InvestmentSummaryCard';
 import { HealthStatusCard } from '@/components/investor-os/HealthStatusCard';
@@ -43,6 +46,7 @@ interface Deal {
   stage: string;
   dealType: string;
   askAmount: number | null;
+  stageHistory?: StageHistoryItem[];
 }
 
 interface Investment {
@@ -98,6 +102,29 @@ interface SyndicateDeal {
   isHostedDeal: boolean;
 }
 
+interface StageHistoryItem {
+  fromStage: string | null;
+  toStage: string;
+  transitionDate: Date;
+  daysInPreviousStage: number | null;
+  notes: string | null;
+}
+
+interface DealPipelineSummary {
+  dealId: string;
+  currentStage: string;
+  dealType: string;
+  sourceChannel: string | null;
+  referralSource: string | null;
+  daysInCurrentStage: number;
+  totalDaysInPipeline: number;
+  stagesReached: string[];
+  stageHistory: StageHistoryItem[];
+  askAmount: number | null;
+  expectedCloseDate: Date | null;
+  passReason: string | null;
+}
+
 interface Organization {
   id: string;
   name: string;
@@ -118,6 +145,7 @@ interface Organization {
   factsByType: Record<string, Fact[]>;
   metricsByType: Record<string, Array<{ date: Date; value: number; unit: string }>>;
   relationships: any[];
+  dealPipelineSummary: DealPipelineSummary | null;
 }
 
 export default function OrganizationDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -268,6 +296,106 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
         </div>
+
+        {/* Deal Pipeline Status Card */}
+        {organization.dealPipelineSummary && (
+          <div className="mb-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <GitBranch className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Deal Pipeline Status</h3>
+              </div>
+
+              {/* Current Stage & Key Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="text-sm text-blue-700">Current Stage</div>
+                  <div className="text-xl font-bold text-blue-900">
+                    {organization.dealPipelineSummary.currentStage.replace('_', ' ')}
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Days in Stage
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {organization.dealPipelineSummary.daysInCurrentStage}
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Total Pipeline Time</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {organization.dealPipelineSummary.totalDaysInPipeline} days
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Stages Progressed</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {organization.dealPipelineSummary.stageHistory.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Source Info */}
+              {(organization.dealPipelineSummary.sourceChannel || organization.dealPipelineSummary.referralSource) && (
+                <div className="flex gap-4 mb-4 text-sm">
+                  {organization.dealPipelineSummary.sourceChannel && (
+                    <div>
+                      <span className="text-gray-500">Source:</span>{' '}
+                      <span className="font-medium text-gray-900">{organization.dealPipelineSummary.sourceChannel}</span>
+                    </div>
+                  )}
+                  {organization.dealPipelineSummary.referralSource && (
+                    <div>
+                      <span className="text-gray-500">Referred by:</span>{' '}
+                      <span className="font-medium text-gray-900">{organization.dealPipelineSummary.referralSource}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Stage Progression Timeline */}
+              {organization.dealPipelineSummary.stageHistory.length > 0 && (
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="text-sm font-medium text-gray-700 mb-3">Stage Progression</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {organization.dealPipelineSummary.stageHistory.map((history, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        {idx > 0 && <ChevronRight className="w-4 h-4 text-gray-400" />}
+                        <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                          history.toStage === organization.dealPipelineSummary!.currentStage
+                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
+                            : history.toStage === 'PASSED'
+                              ? 'bg-red-100 text-red-800'
+                              : history.toStage === 'PORTFOLIO'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {history.toStage.replace('_', ' ')}
+                          {history.daysInPreviousStage !== null && (
+                            <span className="text-xs opacity-70 ml-1">
+                              ({history.daysInPreviousStage}d)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pass Reason if available */}
+              {organization.dealPipelineSummary.passReason && organization.dealPipelineSummary.currentStage === 'PASSED' && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="text-sm text-gray-700">
+                    <span className="font-medium text-red-600">Pass Reason:</span> {organization.dealPipelineSummary.passReason}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Investment Summary & Status Cards */}
         {organization.investments.length > 0 && (
