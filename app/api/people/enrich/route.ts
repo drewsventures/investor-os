@@ -170,37 +170,30 @@ export async function POST(request: NextRequest) {
       const currentRole = (rel?.properties as any)?.role;
 
       try {
-        // Use Claude with web search to find public info
+        // Use Claude to infer likely professional information
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          tools: [
-            {
-              type: 'web_search_20250305',
-              name: 'web_search',
-              max_uses: 3,
-            }
-          ],
+          max_tokens: 512,
           messages: [
             {
               role: 'user',
-              content: `Find the LinkedIn profile and professional information for "${person.fullName}" who works at "${companyName}".
+              content: `I need information about "${person.fullName}" who works at "${companyName}" (a startup/tech company).
 
-Search for their LinkedIn profile and any public professional information. Then provide a JSON response with what you found.
-
-After searching, respond with ONLY this JSON format:
+Based on your knowledge, provide a JSON response:
 {
-  "linkedInUrl": "the exact LinkedIn profile URL (e.g., https://linkedin.com/in/username) or null",
-  "jobTitle": "their job title/role at ${companyName} or null",
-  "city": "city they're based in or null",
-  "country": "2-letter country code (US, UK, etc.) or null",
-  "twitterHandle": "Twitter/X handle without @ or null"
+  "linkedInUrl": null,
+  "jobTitle": "likely job title based on context or null",
+  "city": "likely city based on company HQ or null",
+  "country": "2-letter country code based on company HQ or null",
+  "twitterHandle": null
 }
 
-Important:
-- Only include LinkedIn URLs you actually found and verified
-- The LinkedIn URL must be a real, specific profile URL
-- Return null for any field you couldn't verify`
+Notes:
+- ${companyName} context: ${person.email ? `email domain is ${person.email.split('@')[1]}` : 'no email available'}
+- Only guess job title if you have strong context
+- Only guess location based on company headquarters location
+- Do NOT guess LinkedIn URLs or Twitter handles
+- Return ONLY the JSON, no other text`
             }
           ],
         });
