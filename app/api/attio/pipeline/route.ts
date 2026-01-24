@@ -230,7 +230,7 @@ function mapStatusToDealStage(status: string | null): string {
     return 'PASSED';
   }
   // Portfolio / Invested
-  if (normalizedStatus.includes('portfolio') || normalizedStatus.includes('invested') || normalizedStatus.includes('closed') || normalizedStatus.includes('funded')) {
+  if (normalizedStatus.includes('portfolio') || normalizedStatus.includes('invested') || normalizedStatus.includes('closed') || normalizedStatus.includes('funded') || normalizedStatus.includes('syndicate')) {
     return 'PORTFOLIO';
   }
 
