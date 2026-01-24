@@ -21,13 +21,26 @@ interface Deal {
   dealType: string;
   askAmount: number | null;
   expectedCloseDate: Date | null;
+  sourceChannel: string | null;
+  referralSource: string | null;
   organization: {
     id: string;
     name: string;
     organizationType: string;
+    industry: string | null;
   };
-  taskCount: number;
-  factCount: number;
+  tasks: Array<{ id: string }>;
+  stageHistory: Array<{
+    id: string;
+    fromStage: string | null;
+    toStage: string;
+    transitionDate: string;
+  }>;
+  _count: {
+    conversations: number;
+    facts: number;
+    stageHistory: number;
+  };
   createdAt: Date;
 }
 
@@ -40,7 +53,8 @@ const STAGES = [
   { id: 'SOURCED', label: 'Sourced', color: 'bg-gray-100 border-gray-300' },
   { id: 'FIRST_CALL', label: 'First Call', color: 'bg-blue-50 border-blue-200' },
   { id: 'DILIGENCE', label: 'Diligence', color: 'bg-purple-50 border-purple-200' },
-  { id: 'NEGOTIATION', label: 'Negotiation', color: 'bg-orange-50 border-orange-200' },
+  { id: 'PARTNER_REVIEW', label: 'Partner Review', color: 'bg-indigo-50 border-indigo-200' },
+  { id: 'TERM_SHEET', label: 'Term Sheet', color: 'bg-orange-50 border-orange-200' },
   { id: 'CLOSING', label: 'Closing', color: 'bg-yellow-50 border-yellow-200' },
   { id: 'PORTFOLIO', label: 'Portfolio', color: 'bg-green-50 border-green-200' },
   { id: 'PASSED', label: 'Passed', color: 'bg-red-50 border-red-200' }
@@ -279,10 +293,11 @@ export default function DealsPage() {
                                 )}
                               </div>
 
-                              {(deal.taskCount > 0 || deal.factCount > 0) && (
+                              {(deal.tasks?.length > 0 || deal._count?.facts > 0 || deal._count?.stageHistory > 0) && (
                                 <div className="flex gap-3 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                                  {deal.taskCount > 0 && <span>✓ {deal.taskCount} tasks</span>}
-                                  {deal.factCount > 0 && <span>📊 {deal.factCount} facts</span>}
+                                  {deal.tasks?.length > 0 && <span>✓ {deal.tasks.length} tasks</span>}
+                                  {deal._count?.facts > 0 && <span>📊 {deal._count.facts} facts</span>}
+                                  {deal._count?.stageHistory > 0 && <span>📈 {deal._count.stageHistory} moves</span>}
                                 </div>
                               )}
                           </div>

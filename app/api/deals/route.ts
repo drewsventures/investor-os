@@ -40,10 +40,15 @@ export async function GET(request: NextRequest) {
           where: { status: { not: 'DONE' } },
           orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }]
         },
+        stageHistory: {
+          orderBy: { transitionDate: 'desc' },
+          take: 5
+        },
         _count: {
           select: {
             conversations: true,
-            facts: true
+            facts: true,
+            stageHistory: true
           }
         }
       },
