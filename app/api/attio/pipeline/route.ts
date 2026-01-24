@@ -21,7 +21,18 @@ interface AttioEntry {
   id: { entry_id: string };
   parent_record_id: string;
   created_at: string;
-  values: Record<string, any[]>;
+  values?: Record<string, any[]>;
+  entry_values?: Record<string, any[]>;  // Attio uses entry_values for list entry data
+}
+
+interface ParsedEntryData {
+  status: string | null;
+  owners: string | null;
+  investmentRound: string | null;
+  introSourceName: string | null;
+  introSourceEmail: string | null;
+  people: string | null;
+  dealSource: string | null;
 }
 
 interface AttioRecordResponse {
@@ -81,7 +92,7 @@ function getTextValue(values: Record<string, any[]> | null | undefined, key: str
 }
 
 // Helper to extract status from Attio entry
-function getStatusValue(values: Record<string, any[]>): string | null {
+function getStatusValue(values: Record<string, any[]> | null | undefined): string | null {
   if (!values) return null;
 
   // Try different possible status field names
@@ -98,6 +109,70 @@ function getStatusValue(values: Record<string, any[]>): string | null {
     }
   }
   return null;
+}
+
+// Parse all entry data from Attio entry_values structure
+function parseEntryData(entry: AttioEntry): ParsedEntryData {
+  // Attio uses entry_values for list entry attributes
+  const values = entry.entry_values || entry.values || {};
+
+  // Extract status
+  const statusArr = values['status'];
+  let status: string | null = null;
+  if (statusArr && statusArr.length > 0) {
+    status = statusArr[0]?.status?.title || null;
+  }
+
+  // Extract owners
+  const ownersArr = values['owners'];
+  let owners: string | null = null;
+  if (ownersArr && ownersArr.length > 0) {
+    owners = ownersArr[0]?.value || null;
+  }
+
+  // Extract investment round
+  const roundArr = values['investment_round'];
+  let investmentRound: string | null = null;
+  if (roundArr && roundArr.length > 0) {
+    investmentRound = roundArr[0]?.value || null;
+  }
+
+  // Extract source of introduction
+  const introNameArr = values['source_of_introduction_full_name'];
+  let introSourceName: string | null = null;
+  if (introNameArr && introNameArr.length > 0) {
+    introSourceName = introNameArr[0]?.value || null;
+  }
+
+  const introEmailArr = values['source_of_introduction_email'];
+  let introSourceEmail: string | null = null;
+  if (introEmailArr && introEmailArr.length > 0) {
+    introSourceEmail = introEmailArr[0]?.value || null;
+  }
+
+  // Extract people
+  const peopleArr = values['people'];
+  let people: string | null = null;
+  if (peopleArr && peopleArr.length > 0) {
+    people = peopleArr[0]?.value || null;
+  }
+
+  // Extract deal source
+  const sourceArr = values['deal_source'];
+  let dealSource: string | null = null;
+  if (sourceArr && sourceArr.length > 0) {
+    dealSource = sourceArr[0]?.option?.title || sourceArr[0]?.value || null;
+  }
+
+  return {
+    status,
+    owners,
+    investmentRound,
+    introSourceName,
+    introSourceEmail,
+    people,
+    dealSource,
+  };
 }
 
 // Helper to extract name from Attio record
@@ -126,28 +201,36 @@ function mapStatusToDealStage(status: string | null): string {
 
   const normalizedStatus = status.toLowerCase();
 
-  if (normalizedStatus.includes('sourced') || normalizedStatus.includes('new') || normalizedStatus.includes('incoming')) {
+  // Sourced / Early stage
+  if (normalizedStatus.includes('sourced') || normalizedStatus.includes('new') || normalizedStatus.includes('incoming') || normalizedStatus.includes('tracking')) {
     return 'SOURCED';
   }
-  if (normalizedStatus.includes('first') || normalizedStatus.includes('call') || normalizedStatus.includes('meeting')) {
+  // First call / Initial meeting
+  if (normalizedStatus.includes('first') || normalizedStatus.includes('call') || normalizedStatus.includes('intro') || normalizedStatus.includes('scheduled')) {
     return 'FIRST_CALL';
   }
-  if (normalizedStatus.includes('diligence') || normalizedStatus.includes('dd') || normalizedStatus.includes('review')) {
+  // Diligence
+  if (normalizedStatus.includes('diligence') || normalizedStatus.includes('dd') || normalizedStatus.includes('active')) {
     return 'DILIGENCE';
   }
-  if (normalizedStatus.includes('partner') || normalizedStatus.includes('ic') || normalizedStatus.includes('committee')) {
+  // Partner review / IC
+  if (normalizedStatus.includes('partner') || normalizedStatus.includes('ic') || normalizedStatus.includes('committee') || normalizedStatus.includes('review')) {
     return 'PARTNER_REVIEW';
   }
+  // Term sheet
   if (normalizedStatus.includes('term') || normalizedStatus.includes('offer') || normalizedStatus.includes('negotiate')) {
     return 'TERM_SHEET';
   }
-  if (normalizedStatus.includes('closing') || normalizedStatus.includes('legal') || normalizedStatus.includes('docs')) {
+  // Closing
+  if (normalizedStatus.includes('closing') || normalizedStatus.includes('legal') || normalizedStatus.includes('docs') || normalizedStatus.includes('signing')) {
     return 'CLOSING';
   }
-  if (normalizedStatus.includes('pass') || normalizedStatus.includes('decline') || normalizedStatus.includes('reject')) {
+  // Passed
+  if (normalizedStatus.includes('pass') || normalizedStatus.includes('decline') || normalizedStatus.includes('reject') || normalizedStatus.includes('dead')) {
     return 'PASSED';
   }
-  if (normalizedStatus.includes('portfolio') || normalizedStatus.includes('invested') || normalizedStatus.includes('closed')) {
+  // Portfolio / Invested
+  if (normalizedStatus.includes('portfolio') || normalizedStatus.includes('invested') || normalizedStatus.includes('closed') || normalizedStatus.includes('funded')) {
     return 'PORTFOLIO';
   }
 
@@ -195,17 +278,22 @@ export async function GET() {
     // Build preview data
     const previewEntries = entries.slice(0, 20).map(entry => {
       const company = companyMap.get(entry.parent_record_id);
-      const status = getStatusValue(entry.values || {});
+      const entryData = parseEntryData(entry);
 
       return {
         entryId: entry.id?.entry_id || 'unknown',
         companyRecordId: entry.parent_record_id,
         companyName: company?.name || 'Unknown',
         companyDomain: company?.domain,
-        attioStatus: status,
-        mappedStage: mapStatusToDealStage(status),
+        attioStatus: entryData.status,
+        mappedStage: mapStatusToDealStage(entryData.status),
+        owners: entryData.owners,
+        investmentRound: entryData.investmentRound,
+        introSourceName: entryData.introSourceName,
+        dealSource: entryData.dealSource,
+        people: entryData.people,
         createdAt: entry.created_at,
-        entryValues: entry.values ? Object.keys(entry.values) : [],
+        entryValueKeys: entry.entry_values ? Object.keys(entry.entry_values) : (entry.values ? Object.keys(entry.values) : []),
       };
     });
 
@@ -227,7 +315,7 @@ export async function GET() {
       previewCount: previewEntries.length,
       entries: matchedEntries,
       existingOrgsCount: existingOrgs.length,
-      sampleStatuses: [...new Set(entries.map(e => getStatusValue(e.values || {})).filter(Boolean))],
+      sampleStatuses: [...new Set(entries.map(e => parseEntryData(e).status).filter(Boolean))],
     });
   } catch (error) {
     console.error('Failed to preview deal pipeline:', error);
@@ -325,9 +413,9 @@ export async function POST(request: NextRequest) {
           result.orgsCreated++;
         }
 
-        // Get status and map to stage
-        const status = getStatusValue(entry.values);
-        const stage = mapStatusToDealStage(status);
+        // Parse entry data including status
+        const entryData = parseEntryData(entry);
+        const stage = mapStatusToDealStage(entryData.status);
 
         // Find or create deal
         const existingDeal = await prisma.deal.findFirst({
@@ -346,22 +434,25 @@ export async function POST(request: NextRequest) {
                 fromStage: existingDeal.stage,
                 toStage: stage as any,
                 triggeredBy: 'attio_sync',
+                notes: `Status in Attio: ${entryData.status || 'none'}`,
               },
             });
           }
 
-          // Update deal with Attio references
+          // Update deal with Attio references and additional data
           await prisma.deal.update({
             where: { id: existingDeal.id },
             data: {
               stage: stage as any,
               attioEntryId: entry.id.entry_id,
               attioRecordId: entry.parent_record_id,
+              sourceChannel: entryData.dealSource || existingDeal.sourceChannel,
+              referralSource: entryData.introSourceName || existingDeal.referralSource,
             },
           });
           result.dealsUpdated++;
         } else {
-          // Create new deal with Attio references
+          // Create new deal with Attio references and additional data
           const newDeal = await prisma.deal.create({
             data: {
               name: `${companyName} - RBV Investment`,
@@ -371,6 +462,8 @@ export async function POST(request: NextRequest) {
               firstContactDate: new Date(entry.created_at),
               attioEntryId: entry.id.entry_id,
               attioRecordId: entry.parent_record_id,
+              sourceChannel: entryData.dealSource,
+              referralSource: entryData.introSourceName,
             },
           });
 
@@ -381,6 +474,7 @@ export async function POST(request: NextRequest) {
               fromStage: null,
               toStage: stage as any,
               triggeredBy: 'attio_import',
+              notes: `Imported from Attio. Status: ${entryData.status || 'none'}`,
             },
           });
 
