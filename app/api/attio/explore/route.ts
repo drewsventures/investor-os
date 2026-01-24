@@ -42,10 +42,18 @@ export async function GET() {
     const listsWithDetails = await Promise.all(
       lists.data.map(async (list: any) => {
         try {
-          // Get list entries (first 5)
-          const entriesResponse = await attioRequest<{ data: any[] }>(
-            `/lists/${list.id.list_id}/entries?limit=5`
-          );
+          // Get list entries (first 5) - using POST query endpoint
+          const entriesResponse = await fetch(`${ATTIO_API_BASE}/lists/${list.id.list_id}/entries/query`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.ATTIO_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ limit: 5 }),
+          }).then(async r => {
+            if (!r.ok) throw new Error(await r.text());
+            return r.json();
+          }) as { data: any[] };
 
           // Get list statuses (stages)
           let statuses: any[] = [];
