@@ -270,6 +270,23 @@ model Deal {
   expectedCloseDate DateTime?
   actualCloseDate  DateTime?
 
+  // Deal Source & Signal Tracking
+  sourceChannel   String?   // "inbound", "outbound", "referral", "syndicate", "accelerator", etc.
+  introducedBy    String?   // Person ID who made the intro
+  referralSource  String?   // Name of referrer if external
+  thesisAlignment String?   // How deal aligns with investment thesis
+  passReason      String?   // Reason for passing (if passed)
+  competitorDeals String?   // Other funds also looking at the deal
+
+  // Engagement Metrics
+  totalMeetings   Int       @default(0)  // Total meeting count
+  lastMeetingDate DateTime?
+  avgResponseTime Int?      // Average response time in hours
+
+  // Attio Integration
+  attioEntryId    String?   // Attio list entry ID
+  attioRecordId   String?   // Attio company record ID
+
   // Metadata
   privacyTier     PrivacyTier @default(SENSITIVE)
   createdAt       DateTime @default(now())
@@ -280,10 +297,38 @@ model Deal {
   tasks           Task[]
   facts           Fact[]
   investment      Investment? // If closed
+  stageHistory    DealStageHistory[]
 
   @@index([organizationId])
   @@index([stage])
   @@index([expectedCloseDate])
+  @@index([sourceChannel])
+  @@index([attioEntryId])
+}
+
+// DEAL STAGE HISTORY - Track stage transitions for analytics
+model DealStageHistory {
+  id              String    @id @default(cuid())
+
+  dealId          String
+  deal            Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  // Stage transition
+  fromStage       DealStage?
+  toStage         DealStage
+  transitionDate  DateTime  @default(now())
+
+  // Context
+  daysInPreviousStage Int?   // How long was it in the previous stage
+  triggeredBy     String?   // What triggered the transition (meeting, email, review)
+  notes           String?   @db.Text
+
+  // Metadata
+  createdAt       DateTime  @default(now())
+  createdBy       String?   // User who made the change
+
+  @@index([dealId, transitionDate])
+  @@index([toStage])
 }
 
 // INVESTMENTS - Closed deals / portfolio companies

@@ -337,25 +337,53 @@ export async function POST(request: NextRequest) {
         });
 
         if (existingDeal) {
-          // Update deal stage
+          // Check if stage changed
+          if (existingDeal.stage !== stage) {
+            // Record stage history
+            await prisma.dealStageHistory.create({
+              data: {
+                dealId: existingDeal.id,
+                fromStage: existingDeal.stage,
+                toStage: stage as any,
+                triggeredBy: 'attio_sync',
+              },
+            });
+          }
+
+          // Update deal with Attio references
           await prisma.deal.update({
             where: { id: existingDeal.id },
             data: {
               stage: stage as any,
+              attioEntryId: entry.id.entry_id,
+              attioRecordId: entry.parent_record_id,
             },
           });
           result.dealsUpdated++;
         } else {
-          // Create new deal
-          await prisma.deal.create({
+          // Create new deal with Attio references
+          const newDeal = await prisma.deal.create({
             data: {
               name: `${companyName} - RBV Investment`,
               organizationId: organization.id,
               stage: stage as any,
               dealType: 'EQUITY',
               firstContactDate: new Date(entry.created_at),
+              attioEntryId: entry.id.entry_id,
+              attioRecordId: entry.parent_record_id,
             },
           });
+
+          // Record initial stage in history
+          await prisma.dealStageHistory.create({
+            data: {
+              dealId: newDeal.id,
+              fromStage: null,
+              toStage: stage as any,
+              triggeredBy: 'attio_import',
+            },
+          });
+
           result.dealsCreated++;
         }
 
