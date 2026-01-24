@@ -71,10 +71,13 @@ async function attioPost<T>(endpoint: string, body: any): Promise<T> {
 }
 
 // Helper to extract text value from Attio record
-function getTextValue(values: Record<string, any[]>, key: string): string | null {
+function getTextValue(values: Record<string, any[]> | null | undefined, key: string): string | null {
+  if (!values) return null;
   const arr = values[key];
   if (!arr || arr.length === 0) return null;
-  return arr[0].value || arr[0].text || null;
+  const first = arr[0];
+  if (!first) return null;
+  return first.value || first.text || null;
 }
 
 // Helper to extract status from Attio entry
@@ -98,17 +101,23 @@ function getStatusValue(values: Record<string, any[]>): string | null {
 }
 
 // Helper to extract name from Attio record
-function getNameValue(values: Record<string, any[]>): string | null {
+function getNameValue(values: Record<string, any[]> | null | undefined): string | null {
+  if (!values) return null;
   const arr = values['name'];
   if (!arr || arr.length === 0) return null;
-  return arr[0].value || arr[0].full_name || null;
+  const first = arr[0];
+  if (!first) return null;
+  return first.value || first.full_name || null;
 }
 
 // Helper to extract domain from Attio record
-function getDomainValue(values: Record<string, any[]>): string | null {
+function getDomainValue(values: Record<string, any[]> | null | undefined): string | null {
+  if (!values) return null;
   const arr = values['domains'];
   if (!arr || arr.length === 0) return null;
-  return arr[0].domain || arr[0].root_domain || null;
+  const first = arr[0];
+  if (!first) return null;
+  return first.domain || first.root_domain || null;
 }
 
 // Map Attio status to our DealStage
@@ -167,15 +176,16 @@ export async function GET() {
         const company = await attioGet<AttioRecordResponse>(
           `/objects/companies/records/${recordId}`
         );
+        const values = company?.data?.values || {};
         return {
           recordId,
-          name: getNameValue(company.data.values),
-          domain: getDomainValue(company.data.values),
-          description: getTextValue(company.data.values, 'description'),
-          industry: getTextValue(company.data.values, 'categories'),
+          name: getNameValue(values),
+          domain: getDomainValue(values),
+          description: getTextValue(values, 'description'),
+          industry: getTextValue(values, 'categories'),
         };
-      } catch {
-        return { recordId, name: null, error: 'Failed to fetch' };
+      } catch (err) {
+        return { recordId, name: null, error: String(err) };
       }
     });
 
