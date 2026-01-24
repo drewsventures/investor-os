@@ -48,6 +48,9 @@ async function attioGet<T>(endpoint: string): Promise<T> {
   return response.json();
 }
 
+// Attio max limit is 50 per request
+const ATTIO_PAGE_SIZE = 50;
+
 /**
  * GET - Fetch notes from Attio
  * Query params:
@@ -58,20 +61,31 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const recordId = searchParams.get('recordId');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
 
-    // Build query string
-    let queryParams = `limit=${limit}`;
-    if (recordId) {
-      queryParams += `&parent_record_id=${recordId}`;
+    // Paginate through Attio notes
+    const allNotes: AttioNote[] = [];
+    let offset = 0;
+
+    while (allNotes.length < limit) {
+      const pageSize = Math.min(ATTIO_PAGE_SIZE, limit - allNotes.length);
+      let queryParams = `limit=${pageSize}&offset=${offset}`;
+      if (recordId) {
+        queryParams += `&parent_record_id=${recordId}`;
+      }
+
+      const notesResponse = await attioGet<{ data: AttioNote[] }>(
+        `/notes?${queryParams}`
+      );
+
+      const pageNotes = notesResponse.data || [];
+      allNotes.push(...pageNotes);
+
+      if (pageNotes.length < pageSize) break; // No more notes
+      offset += pageSize;
     }
 
-    // Fetch notes from Attio
-    const notesResponse = await attioGet<{ data: AttioNote[] }>(
-      `/notes?${queryParams}`
-    );
-
-    const notes = notesResponse.data || [];
+    const notes = allNotes;
 
     // Get local mapping of Attio record IDs to organizations
     const deals = await prisma.deal.findMany({
@@ -132,7 +146,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '500');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 2000);
 
     const result = {
       total: 0,
@@ -141,12 +155,23 @@ export async function POST(request: NextRequest) {
       errors: [] as string[],
     };
 
-    // Fetch all notes from Attio
-    const notesResponse = await attioGet<{ data: AttioNote[] }>(
-      `/notes?limit=${limit}`
-    );
+    // Paginate through all notes from Attio
+    const notes: AttioNote[] = [];
+    let offset = 0;
 
-    const notes = notesResponse.data || [];
+    while (notes.length < limit) {
+      const pageSize = Math.min(ATTIO_PAGE_SIZE, limit - notes.length);
+      const notesResponse = await attioGet<{ data: AttioNote[] }>(
+        `/notes?limit=${pageSize}&offset=${offset}`
+      );
+
+      const pageNotes = notesResponse.data || [];
+      notes.push(...pageNotes);
+
+      if (pageNotes.length < pageSize) break; // No more notes
+      offset += pageSize;
+    }
+
     result.total = notes.length;
 
     // Get local mapping of Attio record IDs to organizations
