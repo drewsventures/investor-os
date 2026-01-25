@@ -23,7 +23,11 @@ import {
   Sparkles,
   GitBranch,
   Clock,
-  ChevronRight
+  ChevronRight,
+  Wand2,
+  Loader2,
+  Check,
+  X
 } from 'lucide-react';
 import { InvestmentSummaryCard } from '@/components/investor-os/InvestmentSummaryCard';
 import { HealthStatusCard } from '@/components/investor-os/HealthStatusCard';
@@ -154,6 +158,13 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichmentResult, setEnrichmentResult] = useState<{
+    success: boolean;
+    enrichment: Array<{ field: string; value: unknown; confidence: number }>;
+    fieldsUpdated: string[];
+    factsCreated: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchOrganization();
@@ -169,6 +180,29 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
       console.error('Failed to fetch organization:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEnrich = async () => {
+    if (!organization) return;
+    setEnriching(true);
+    setEnrichmentResult(null);
+    try {
+      const response = await fetch('/api/organizations/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: organization.id }),
+      });
+      const result = await response.json();
+      setEnrichmentResult(result);
+      if (result.success && result.fieldsUpdated?.length > 0) {
+        // Refresh organization data
+        fetchOrganization();
+      }
+    } catch (error) {
+      console.error('Failed to enrich organization:', error);
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -258,21 +292,82 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
 
-              <button
-                onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                  isChatOpen
-                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                {isChatOpen ? 'Close AI Brain' : 'Ask AI Brain'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEnrich}
+                  disabled={enriching}
+                  className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {enriching ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-4 h-4" />
+                  )}
+                  {enriching ? 'Enriching...' : 'Enrich with AI'}
+                </button>
+                <button
+                  onClick={() => setIsChatOpen(!isChatOpen)}
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                    isChatOpen
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isChatOpen ? 'Close AI Brain' : 'Ask AI Brain'}
+                </button>
+              </div>
             </div>
 
             {organization.description && (
               <p className="mt-4 text-gray-700">{organization.description}</p>
+            )}
+
+            {/* Enrichment Results */}
+            {enrichmentResult && (
+              <div className="mt-4 p-4 rounded-lg bg-purple-50 border border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-purple-900 flex items-center gap-2">
+                    <Wand2 className="w-4 h-4" />
+                    AI Enrichment Results
+                  </h4>
+                  <button
+                    onClick={() => setEnrichmentResult(null)}
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2 text-sm">
+                  {enrichmentResult.enrichment
+                    .filter(e => e.value !== null)
+                    .sort((a, b) => b.confidence - a.confidence)
+                    .map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        {item.confidence >= 0.7 ? (
+                          <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <span className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0">○</span>
+                        )}
+                        <div className="flex-1">
+                          <span className="font-medium text-gray-700">{item.field}:</span>{' '}
+                          <span className="text-gray-600">
+                            {Array.isArray(item.value) ? (item.value as string[]).join(', ') : String(item.value)}
+                          </span>
+                          <span className={`ml-2 text-xs ${item.confidence >= 0.7 ? 'text-green-600' : 'text-yellow-600'}`}>
+                            ({(item.confidence * 100).toFixed(0)}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                {enrichmentResult.fieldsUpdated.length > 0 && (
+                  <p className="mt-3 text-xs text-purple-700">
+                    ✓ Updated: {enrichmentResult.fieldsUpdated.join(', ')}
+                    {enrichmentResult.factsCreated > 0 && ` • ${enrichmentResult.factsCreated} facts added`}
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Quick Stats */}
