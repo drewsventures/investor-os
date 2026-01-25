@@ -211,16 +211,20 @@ export default function SyndicatePage() {
     }
   };
 
-  const formatCurrency = (value: number | null) => {
+  const formatCurrency = (value: number | string | null) => {
     if (value === null || value === undefined) return '—';
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-    return `$${value.toFixed(0)}`;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '—';
+    if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+    return `$${num.toFixed(0)}`;
   };
 
-  const formatMultiple = (value: number | null) => {
+  const formatMultiple = (value: number | string | null) => {
     if (value === null || value === undefined) return '—';
-    return `${value.toFixed(2)}x`;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '—';
+    return `${num.toFixed(2)}x`;
   };
 
   const getStatusColor = (status: string) => {
@@ -542,7 +546,7 @@ export default function SyndicatePage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-right">
-                      {deal.carry !== null ? `${(deal.carry * 100).toFixed(0)}%` : '—'}
+                      {deal.carry !== null ? `${(Number(deal.carry) * 100).toFixed(0)}%` : '—'}
                     </td>
                   </tr>
                 ))}
