@@ -81,10 +81,7 @@ export async function GET(request: NextRequest) {
     const summary = {
       totalDeals: filteredDeals.length,
       activeDeals: activeDeals.length,
-      dealsByStage: Object.entries(dealsByStage).map(([stage, count]) => ({
-        stage,
-        count
-      })),
+      dealsByStage,
       totalPotentialInvestment: totalValue
     };
 
