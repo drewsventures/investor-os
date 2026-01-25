@@ -55,9 +55,9 @@ interface Summary {
   realizedDeals: number;
   hostedDeals: number;
   coSyndicateDeals: number;
-  markets: string[];
-  leadSyndicates: string[];
-  leadSyndicateBreakdown: Record<string, { count: number; invested: number }>;
+  markets?: string[];
+  leadSyndicates?: string[];
+  leadSyndicateBreakdown?: Record<string, { count: number; invested: number }>;
 }
 
 export default function SyndicatePage() {
@@ -401,7 +401,7 @@ export default function SyndicatePage() {
               <option value="">All Lead Syndicates</option>
               {summary.leadSyndicates.map(lead => (
                 <option key={lead} value={lead}>
-                  {lead} ({summary.leadSyndicateBreakdown[lead]?.count || 0})
+                  {lead} ({summary.leadSyndicateBreakdown?.[lead]?.count || 0})
                 </option>
               ))}
             </select>
