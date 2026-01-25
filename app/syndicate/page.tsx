@@ -402,7 +402,7 @@ export default function SyndicatePage() {
               onChange={(e) => setLeadSyndicateFilter(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
             >
-              <option value="">All Lead Syndicates</option>
+              <option value="">All Syndicate Leads</option>
               {summary.leadSyndicates.map(lead => (
                 <option key={lead} value={lead}>
                   {lead} ({summary.leadSyndicateBreakdown?.[lead]?.count || 0})
