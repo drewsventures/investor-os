@@ -161,7 +161,13 @@ async function main() {
       }
 
       if (enrichment.headquarters?.confidence && enrichment.headquarters.confidence >= CONFIDENCE_THRESHOLD) {
-        updateData.headquarters = enrichment.headquarters.value;
+        // Parse headquarters into city/country
+        const hq = enrichment.headquarters.value;
+        const parts = hq.split(',').map((p: string) => p.trim());
+        if (parts.length >= 2) {
+          updateData.city = parts[0];
+          updateData.country = parts[parts.length - 1];
+        }
         console.log(`   ✓ Headquarters (${(enrichment.headquarters.confidence * 100).toFixed(0)}%)`);
       }
 

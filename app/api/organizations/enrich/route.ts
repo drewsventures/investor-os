@@ -104,7 +104,13 @@ export async function POST(request: NextRequest) {
       updateData.industry = highConfidenceData.industry;
     }
     if (highConfidenceData.headquarters) {
-      updateData.headquarters = highConfidenceData.headquarters;
+      // Parse headquarters into city/country if possible
+      const hq = highConfidenceData.headquarters as string;
+      const parts = hq.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        updateData.city = parts[0];
+        updateData.country = parts[parts.length - 1];
+      }
     }
     if (highConfidenceData.employeeCount) {
       updateData.employeeRange = highConfidenceData.employeeCount;
