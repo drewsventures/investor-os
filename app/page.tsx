@@ -69,10 +69,7 @@ export default function Dashboard() {
         deals: {
           total: dealsData.summary?.totalDeals || 0,
           active: dealsData.summary?.activeDeals || 0,
-          byStage: dealsData.summary?.dealsByStage?.reduce((acc: Record<string, number>, item: { stage: string; count: number }) => {
-            acc[item.stage] = item.count;
-            return acc;
-          }, {}) || {},
+          byStage: dealsData.summary?.dealsByStage || {},
         },
         investments: {
           totalDeployed: orgsData.summary?.totalInvested || 0,
