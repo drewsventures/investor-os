@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   const isHosted = searchParams.get('isHosted');
   const market = searchParams.get('market');
   const search = searchParams.get('search');
+  const leadSyndicate = searchParams.get('leadSyndicate');
 
   try {
     const where: Prisma.SyndicateDealWhereInput = {};
@@ -34,6 +35,10 @@ export async function GET(request: NextRequest) {
 
     if (market) {
       where.market = market;
+    }
+
+    if (leadSyndicate) {
+      where.leadSyndicate = leadSyndicate;
     }
 
     if (search) {
@@ -74,6 +79,26 @@ export async function GET(request: NextRequest) {
     // Get unique markets for filtering
     const markets = [...new Set(allDeals.map(d => d.market).filter(Boolean))].sort();
 
+    // Get unique lead syndicates for filtering (only co-syndicates have meaningful leads)
+    const leadSyndicates = [...new Set(
+      allDeals
+        .filter(d => !d.isHostedDeal && d.leadSyndicate)
+        .map(d => d.leadSyndicate)
+    )].filter(Boolean).sort() as string[];
+
+    // Lead syndicate breakdown (for co-syndicates only)
+    const leadSyndicateBreakdown = allDeals
+      .filter(d => !d.isHostedDeal && d.leadSyndicate)
+      .reduce((acc, d) => {
+        const lead = d.leadSyndicate!;
+        if (!acc[lead]) {
+          acc[lead] = { count: 0, invested: 0 };
+        }
+        acc[lead].count++;
+        acc[lead].invested += Number(d.invested || 0);
+        return acc;
+      }, {} as Record<string, { count: number; invested: number }>);
+
     return NextResponse.json({
       deals,
       summary: {
@@ -88,6 +113,8 @@ export async function GET(request: NextRequest) {
         marketBreakdown,
         statusBreakdown,
         markets,
+        leadSyndicates,
+        leadSyndicateBreakdown,
       },
     });
   } catch (error) {

@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Newspaper,
   RefreshCw,
+  Building,
 } from 'lucide-react';
 
 interface SyndicateDeal {
@@ -55,6 +56,8 @@ interface Summary {
   hostedDeals: number;
   coSyndicateDeals: number;
   markets: string[];
+  leadSyndicates: string[];
+  leadSyndicateBreakdown: Record<string, { count: number; invested: number }>;
 }
 
 export default function SyndicatePage() {
@@ -66,7 +69,30 @@ export default function SyndicatePage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [marketFilter, setMarketFilter] = useState('');
+  const [leadSyndicateFilter, setLeadSyndicateFilter] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCreateOrgsModal, setShowCreateOrgsModal] = useState(false);
+  const [orgCreationPreview, setOrgCreationPreview] = useState<{
+    summary: {
+      totalDealsWithoutOrg: number;
+      uniqueCompanies: number;
+      wouldCreateOrgs: number;
+      wouldLinkDeals: number;
+      hostedCount: number;
+      coSyndicateCount: number;
+    };
+    byLeadSyndicate: Record<string, { count: number; invested: number }>;
+    preview: Array<{
+      companyName: string;
+      dealCount: number;
+      hasExistingOrg: boolean;
+      isHosted: boolean;
+      leadSyndicate: string | null;
+      market: string | null;
+      invested: number;
+    }>;
+  } | null>(null);
+  const [creatingOrgs, setCreatingOrgs] = useState(false);
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -76,6 +102,7 @@ export default function SyndicatePage() {
       if (typeFilter === 'hosted') params.append('isHosted', 'true');
       if (typeFilter === 'cosyndicate') params.append('isHosted', 'false');
       if (marketFilter) params.append('market', marketFilter);
+      if (leadSyndicateFilter) params.append('leadSyndicate', leadSyndicateFilter);
       if (searchQuery) params.append('search', searchQuery);
 
       const response = await fetch(`/api/syndicate?${params}`);
@@ -87,11 +114,44 @@ export default function SyndicatePage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, marketFilter, searchQuery]);
+  }, [statusFilter, typeFilter, marketFilter, leadSyndicateFilter, searchQuery]);
 
   useEffect(() => {
     fetchDeals();
   }, [fetchDeals]);
+
+  const fetchOrgCreationPreview = async () => {
+    try {
+      const response = await fetch('/api/syndicate/create-orgs');
+      const data = await response.json();
+      setOrgCreationPreview(data);
+    } catch (error) {
+      console.error('Failed to fetch org creation preview:', error);
+    }
+  };
+
+  const handleCreateOrgs = async () => {
+    setCreatingOrgs(true);
+    try {
+      const response = await fetch('/api/syndicate/create-orgs', {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (result.success) {
+        alert(`Created ${result.results.created} organizations and linked ${result.results.linked} deals!`);
+        setShowCreateOrgsModal(false);
+        setOrgCreationPreview(null);
+        fetchDeals();
+      } else {
+        alert(`Error: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to create orgs:', error);
+      alert('Failed to create organizations');
+    } finally {
+      setCreatingOrgs(false);
+    }
+  };
 
   const handleImport = async (csvText: string) => {
     setImporting(true);
@@ -187,13 +247,25 @@ export default function SyndicatePage() {
               AngelList syndicate investments and fund positions
             </p>
           </div>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Import CSV
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowCreateOrgsModal(true);
+                fetchOrgCreationPreview();
+              }}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Building className="w-4 h-4" />
+              Create Orgs
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Import CSV
+            </button>
+          </div>
         </div>
 
         {/* Summary Stats */}
@@ -228,6 +300,37 @@ export default function SyndicatePage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-sm text-gray-600">Co-Syndicate</div>
               <div className="text-2xl font-bold text-gray-700">{summary.coSyndicateDeals}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Lead Syndicate Partners Breakdown */}
+        {summary?.leadSyndicateBreakdown && Object.keys(summary.leadSyndicateBreakdown).length > 0 && (
+          <div className="bg-white rounded-lg shadow p-4 mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Top Co-Syndicate Partners</h3>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(summary.leadSyndicateBreakdown)
+                .sort((a, b) => b[1].count - a[1].count)
+                .slice(0, 8)
+                .map(([lead, data]) => (
+                  <button
+                    key={lead}
+                    onClick={() => {
+                      setTypeFilter('cosyndicate');
+                      setLeadSyndicateFilter(lead);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      leadSyndicateFilter === lead
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span>{lead}</span>
+                    <span className={`text-xs ${leadSyndicateFilter === lead ? 'text-purple-200' : 'text-gray-500'}`}>
+                      {data.count} deals • {formatCurrency(data.invested)}
+                    </span>
+                  </button>
+                ))}
             </div>
           </div>
         )}
@@ -284,6 +387,22 @@ export default function SyndicatePage() {
               <option value="">All Markets</option>
               {summary.markets.map(market => (
                 <option key={market} value={market}>{market}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Lead Syndicate Filter (for co-syndicates) */}
+          {summary?.leadSyndicates && summary.leadSyndicates.length > 0 && (
+            <select
+              value={leadSyndicateFilter}
+              onChange={(e) => setLeadSyndicateFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">All Lead Syndicates</option>
+              {summary.leadSyndicates.map(lead => (
+                <option key={lead} value={lead}>
+                  {lead} ({summary.leadSyndicateBreakdown[lead]?.count || 0})
+                </option>
               ))}
             </select>
           )}
@@ -481,6 +600,141 @@ export default function SyndicatePage() {
                   <>
                     <Upload className="w-4 h-4" />
                     Import
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Organizations Modal */}
+      {showCreateOrgsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Create Organizations from Syndicate Deals</h2>
+            <p className="text-gray-600 mb-4">
+              This will create Organization records for syndicate companies that don&apos;t have one yet,
+              allowing you to track them in your portfolio.
+            </p>
+
+            {orgCreationPreview ? (
+              <>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-600">Deals without Org</div>
+                    <div className="text-xl font-bold text-gray-900">{orgCreationPreview.summary.totalDealsWithoutOrg}</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-600">Unique Companies</div>
+                    <div className="text-xl font-bold text-gray-900">{orgCreationPreview.summary.uniqueCompanies}</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-600">Hosted (RBV)</div>
+                    <div className="text-xl font-bold text-orange-600">{orgCreationPreview.summary.hostedCount}</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-600">Co-Syndicate</div>
+                    <div className="text-xl font-bold text-blue-600">{orgCreationPreview.summary.coSyndicateCount}</div>
+                  </div>
+                </div>
+
+                {/* Lead Syndicate Breakdown */}
+                {Object.keys(orgCreationPreview.byLeadSyndicate).length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">By Lead Syndicate Partner</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(orgCreationPreview.byLeadSyndicate)
+                        .sort((a, b) => b[1].count - a[1].count)
+                        .slice(0, 10)
+                        .map(([lead, data]) => (
+                          <span
+                            key={lead}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
+                          >
+                            {lead}: {data.count}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview Table */}
+                <div className="border rounded-lg overflow-hidden mb-4">
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lead</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Deals</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {orgCreationPreview.preview.map((item, idx) => (
+                          <tr key={idx} className="text-sm">
+                            <td className="px-3 py-2">{item.companyName}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${item.isHosted ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {item.isHosted ? 'Hosted' : 'Co-Syndicate'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-500">{item.leadSyndicate || '—'}</td>
+                            <td className="px-3 py-2">{item.dealCount}</td>
+                            <td className="px-3 py-2">
+                              {item.hasExistingOrg ? (
+                                <span className="text-green-600 text-xs">Has Org</span>
+                              ) : (
+                                <span className="text-blue-600 text-xs">Will Create</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-3 text-sm text-blue-800 mb-4">
+                  Will create <strong>{orgCreationPreview.summary.wouldCreateOrgs}</strong> new organizations
+                  and link <strong>{orgCreationPreview.summary.wouldLinkDeals}</strong> deals.
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+                <p className="mt-2 text-gray-500">Loading preview...</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setShowCreateOrgsModal(false);
+                  setOrgCreationPreview(null);
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                disabled={creatingOrgs}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateOrgs}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+                disabled={creatingOrgs || !orgCreationPreview}
+              >
+                {creatingOrgs ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Building className="w-4 h-4" />
+                    Create Organizations
                   </>
                 )}
               </button>
