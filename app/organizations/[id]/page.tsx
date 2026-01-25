@@ -161,9 +161,10 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [enriching, setEnriching] = useState(false);
   const [enrichmentResult, setEnrichmentResult] = useState<{
     success: boolean;
-    enrichment: Array<{ field: string; value: unknown; confidence: number }>;
-    fieldsUpdated: string[];
-    factsCreated: number;
+    enrichment?: Array<{ field: string; value: unknown; confidence: number }>;
+    fieldsUpdated?: string[];
+    factsCreated?: number;
+    error?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -325,46 +326,54 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
 
             {/* Enrichment Results */}
             {enrichmentResult && (
-              <div className="mt-4 p-4 rounded-lg bg-purple-50 border border-purple-200">
+              <div className={`mt-4 p-4 rounded-lg border ${enrichmentResult.success ? 'bg-purple-50 border-purple-200' : 'bg-red-50 border-red-200'}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-purple-900 flex items-center gap-2">
+                  <h4 className={`font-medium flex items-center gap-2 ${enrichmentResult.success ? 'text-purple-900' : 'text-red-900'}`}>
                     <Wand2 className="w-4 h-4" />
-                    AI Enrichment Results
+                    {enrichmentResult.success ? 'AI Enrichment Results' : 'Enrichment Failed'}
                   </h4>
                   <button
                     onClick={() => setEnrichmentResult(null)}
-                    className="text-purple-600 hover:text-purple-800"
+                    className={enrichmentResult.success ? 'text-purple-600 hover:text-purple-800' : 'text-red-600 hover:text-red-800'}
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="space-y-2 text-sm">
-                  {enrichmentResult.enrichment
-                    .filter(e => e.value !== null)
-                    .sort((a, b) => b.confidence - a.confidence)
-                    .map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-2">
-                        {item.confidence >= 0.7 ? (
-                          <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <span className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0">○</span>
-                        )}
-                        <div className="flex-1">
-                          <span className="font-medium text-gray-700">{item.field}:</span>{' '}
-                          <span className="text-gray-600">
-                            {Array.isArray(item.value) ? (item.value as string[]).join(', ') : String(item.value)}
-                          </span>
-                          <span className={`ml-2 text-xs ${item.confidence >= 0.7 ? 'text-green-600' : 'text-yellow-600'}`}>
-                            ({(item.confidence * 100).toFixed(0)}%)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-                {enrichmentResult.fieldsUpdated.length > 0 && (
-                  <p className="mt-3 text-xs text-purple-700">
-                    ✓ Updated: {enrichmentResult.fieldsUpdated.join(', ')}
-                    {enrichmentResult.factsCreated > 0 && ` • ${enrichmentResult.factsCreated} facts added`}
+                {enrichmentResult.success && enrichmentResult.enrichment ? (
+                  <>
+                    <div className="space-y-2 text-sm">
+                      {enrichmentResult.enrichment
+                        .filter(e => e.value !== null)
+                        .sort((a, b) => b.confidence - a.confidence)
+                        .map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            {item.confidence >= 0.7 ? (
+                              <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <span className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0">○</span>
+                            )}
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-700">{item.field}:</span>{' '}
+                              <span className="text-gray-600">
+                                {Array.isArray(item.value) ? (item.value as string[]).join(', ') : String(item.value)}
+                              </span>
+                              <span className={`ml-2 text-xs ${item.confidence >= 0.7 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                ({(item.confidence * 100).toFixed(0)}%)
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    {enrichmentResult.fieldsUpdated && enrichmentResult.fieldsUpdated.length > 0 && (
+                      <p className="mt-3 text-xs text-purple-700">
+                        ✓ Updated: {enrichmentResult.fieldsUpdated.join(', ')}
+                        {(enrichmentResult.factsCreated ?? 0) > 0 && ` • ${enrichmentResult.factsCreated} facts added`}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-red-700">
+                    {(enrichmentResult as { error?: string }).error || 'An error occurred during enrichment. Please try again.'}
                   </p>
                 )}
               </div>
