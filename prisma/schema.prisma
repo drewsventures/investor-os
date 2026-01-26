@@ -130,6 +130,10 @@ model Person {
   facts           Fact[]
   lpCommitments   LPCommitment[]
 
+  // Gmail integration
+  emailLinks          EmailPersonLink[]
+  relationshipStrength RelationshipStrength?
+
   @@index([email])
   @@index([canonicalKey])
   @@index([privacyTier])
@@ -187,6 +191,9 @@ model Organization {
   metrics         OrganizationMetric[]
   syndicateDeals  SyndicateDeal[]
   fundInvestments FundInvestment[]
+
+  // Gmail integration
+  emailLinks      EmailOrgLink[]
 
   @@index([canonicalKey])
   @@index([organizationType])
@@ -831,6 +838,108 @@ model FundMetric {
 
   @@unique([fundName, snapshotDate])
   @@index([fundName, snapshotDate])
+}
+
+// ============================================================================
+// GMAIL INTEGRATION
+// ============================================================================
+
+// GMAIL CONNECTION - OAuth token storage
+model GmailConnection {
+  id              String    @id @default(cuid())
+  email           String    @unique  // Connected Gmail address
+  accessToken     String    @db.Text
+  refreshToken    String    @db.Text
+  tokenExpiresAt  DateTime
+  lastSyncAt      DateTime?
+  syncCursor      String?   // Gmail history ID for incremental sync
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// EMAIL MESSAGE - Stored email messages
+model EmailMessage {
+  id              String    @id @default(cuid())
+  gmailMessageId  String    @unique
+  gmailThreadId   String
+  subject         String?
+  snippet         String?   @db.Text
+  bodyText        String?   @db.Text
+  fromEmail       String
+  fromName        String?
+  toEmails        String[]
+  ccEmails        String[]
+  sentAt          DateTime
+  isInbound       Boolean
+  hasAttachments  Boolean   @default(false)
+  labels          String[]
+
+  // AI-processed fields
+  aiSummary       String?   @db.Text
+  aiActionItems   Json?     // [{description, owner, dueDate, priority}]
+  aiProcessedAt   DateTime?
+
+  // Links to entities
+  personLinks     EmailPersonLink[]
+  orgLinks        EmailOrgLink[]
+
+  createdAt       DateTime  @default(now())
+
+  @@index([gmailThreadId])
+  @@index([fromEmail])
+  @@index([sentAt])
+}
+
+// EMAIL PERSON LINK - Email-to-Person linking
+model EmailPersonLink {
+  id           String       @id @default(cuid())
+  emailId      String
+  email        EmailMessage @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  personId     String
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role         String       // "from", "to", "cc"
+  emailAddress String
+
+  @@unique([emailId, personId, role])
+  @@index([personId])
+}
+
+// EMAIL ORG LINK - Email-to-Organization linking (by domain)
+model EmailOrgLink {
+  id             String       @id @default(cuid())
+  emailId        String
+  email          EmailMessage @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([emailId, organizationId])
+  @@index([organizationId])
+}
+
+// RELATIONSHIP STRENGTH - Cached relationship strength scores
+model RelationshipStrength {
+  id               String    @id @default(cuid())
+  personId         String    @unique
+  person           Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  strength         Decimal   @db.Decimal(3, 2)  // 0.00 - 1.00
+  trend            String    // "strengthening", "stable", "weakening"
+
+  // Factor breakdown
+  recencyScore     Decimal   @db.Decimal(3, 2)
+  frequencyScore   Decimal   @db.Decimal(3, 2)
+  engagementScore  Decimal   @db.Decimal(3, 2)
+  reciprocityScore Decimal   @db.Decimal(3, 2)
+
+  // Stats
+  totalEmails      Int
+  lastEmailAt      DateTime?
+  aiSummary        String?   @db.Text
+  aiRecommendation String?
+
+  calculatedAt     DateTime  @default(now())
+
+  @@index([strength])
 }
 
 // ============================================================================

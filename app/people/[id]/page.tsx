@@ -17,8 +17,12 @@ import {
   Phone,
   Linkedin,
   Calendar,
-  DollarSign
+  DollarSign,
+  Inbox
 } from 'lucide-react';
+import EmailActivityFeed from '@/components/EmailActivityFeed';
+import RelationshipSummaryCard from '@/components/RelationshipSummaryCard';
+import ActionItemsPanel from '@/components/ActionItemsPanel';
 
 interface Organization {
   id: string;
@@ -73,7 +77,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'conversations' | 'tasks' | 'lp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'conversations' | 'tasks' | 'lp' | 'emails'>('overview');
 
   useEffect(() => {
     fetchPerson();
@@ -211,6 +215,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
             <nav className="flex space-x-8 px-6" aria-label="Tabs">
               {[
                 { id: 'overview', label: 'Overview', icon: Users },
+                { id: 'emails', label: 'Emails', icon: Inbox },
                 { id: 'organizations', label: 'Organizations', icon: Building2, count: person.organizations.length },
                 { id: 'conversations', label: 'Conversations', icon: MessageSquare, count: person.conversations.length },
                 { id: 'tasks', label: 'Tasks', icon: CheckSquare, count: person.tasks.length },
@@ -492,6 +497,26 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Emails Tab */}
+            {activeTab === 'emails' && (
+              <div className="space-y-6">
+                {/* Relationship Summary */}
+                <RelationshipSummaryCard personId={person.id} />
+
+                {/* Action Items */}
+                <ActionItemsPanel personId={person.id} />
+
+                {/* Email Activity */}
+                <div className="bg-white rounded-xl border border-slate-200 p-6">
+                  <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <Inbox className="w-5 h-5 text-blue-600" />
+                    Recent Emails
+                  </h3>
+                  <EmailActivityFeed entityType="person" entityId={person.id} limit={10} />
+                </div>
               </div>
             )}
           </div>

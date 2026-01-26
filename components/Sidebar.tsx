@@ -13,6 +13,7 @@ import {
   Brain,
   ChevronLeft,
   ChevronRight,
+  Settings,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Syndicate', href: '/syndicate', icon: Briefcase },
   { name: 'Fund I', href: '/fund', icon: Wallet },
   { name: 'AI Brain', href: '/brain', icon: Brain },
+  { name: 'Settings', href: '/settings/integrations', icon: Settings },
 ];
 
 export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
