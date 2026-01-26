@@ -1,6 +1,6 @@
 /**
- * Batch enrich organizations with AI-researched data
- * Usage: npx tsx scripts/enrich-organizations.ts [--limit N] [--dry-run]
+ * Enrich Fund I portfolio companies with AI
+ * Usage: npx tsx scripts/enrich-fund-orgs.ts
  */
 
 import 'dotenv/config';
@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 const anthropic = new Anthropic();
 
 const CONFIDENCE_THRESHOLD = 0.7;
-const DELAY_BETWEEN_CALLS = 1000; // 1 second delay to avoid rate limits
+const DELAY_BETWEEN_CALLS = 1000;
 
 interface CompanyEnrichment {
   description?: { value: string; confidence: number };
@@ -21,13 +21,8 @@ interface CompanyEnrichment {
   headquarters?: { value: string; confidence: number };
   employeeCount?: { value: string; confidence: number };
   totalRaised?: { value: number; confidence: number };
-  lastRoundAmount?: { value: number; confidence: number };
-  lastRoundType?: { value: string; confidence: number };
-  lastRoundDate?: { value: string; confidence: number };
   notableInvestors?: { value: string[]; confidence: number };
   keyProducts?: { value: string; confidence: number };
-  competitors?: { value: string[]; confidence: number };
-  recentNews?: { value: string; confidence: number };
 }
 
 async function researchCompany(companyName: string, domain: string | null): Promise<CompanyEnrichment> {
@@ -46,9 +41,7 @@ Be conservative with confidence scores:
 - 0.5-0.69: You think this is likely correct but have some uncertainty
 - Below 0.5: You are guessing or the information is unclear
 
-If you cannot find reliable information about a field, use null for value and 0 for confidence.
-
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "description": { "value": "1-2 sentence company description", "confidence": 0.0 },
   "website": { "value": "https://...", "confidence": 0.0 },
@@ -57,22 +50,15 @@ Return ONLY valid JSON in this exact format:
   "headquarters": { "value": "City, State/Country", "confidence": 0.0 },
   "employeeCount": { "value": "11-50", "confidence": 0.0 },
   "totalRaised": { "value": 10000000, "confidence": 0.0 },
-  "lastRoundAmount": { "value": 5000000, "confidence": 0.0 },
-  "lastRoundType": { "value": "Series A", "confidence": 0.0 },
-  "lastRoundDate": { "value": "2024-01", "confidence": 0.0 },
   "notableInvestors": { "value": ["Investor 1", "Investor 2"], "confidence": 0.0 },
-  "keyProducts": { "value": "Brief description of main products/services", "confidence": 0.0 },
-  "competitors": { "value": ["Competitor 1", "Competitor 2"], "confidence": 0.0 },
-  "recentNews": { "value": "Brief summary of recent notable news or developments", "confidence": 0.0 }
+  "keyProducts": { "value": "Brief description of main products/services", "confidence": 0.0 }
 }`;
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1500,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const content = response.content[0];
@@ -80,7 +66,7 @@ Return ONLY valid JSON in this exact format:
       throw new Error('Unexpected response type');
     }
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = content.text.match(/\\{[\\s\\S]*\\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
     }
@@ -97,51 +83,38 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const limitArg = args.find(a => a.startsWith('--limit'));
-  const limit = limitArg ? parseInt(limitArg.split('=')[1] || '10') : 10;
+  console.log('\\n🤖 Enriching Fund I Portfolio Companies\\n');
 
-  console.log(`\n🔍 Enrichment Settings:`);
-  console.log(`   Limit: ${limit} organizations`);
-  console.log(`   Dry run: ${dryRun}`);
-  console.log(`   Confidence threshold: ${CONFIDENCE_THRESHOLD}`);
-  console.log('');
-
-  // Find organizations from syndicate deals that need enrichment
+  // Get fund portfolio companies that need enrichment
   const orgsToEnrich = await prisma.organization.findMany({
     where: {
+      fundInvestments: { some: {} },
       description: null,
-      syndicateDeals: { some: {} },
     },
     select: {
       id: true,
       name: true,
       domain: true,
-      industry: true,
       website: true,
+      industry: true,
     },
-    take: limit,
     orderBy: { name: 'asc' },
   });
 
-  console.log(`Found ${orgsToEnrich.length} organizations to enrich\n`);
+  console.log(`Found ${orgsToEnrich.length} companies to enrich\\n`);
 
   const results = {
-    processed: 0,
     enriched: 0,
     skipped: 0,
     errors: 0,
   };
 
   for (const org of orgsToEnrich) {
-    console.log(`\n📊 Processing: ${org.name}`);
+    console.log(`\\n📊 Processing: ${org.name}`);
 
     try {
       const enrichment = await researchCompany(org.name, org.domain);
-      results.processed++;
 
-      // Collect high confidence updates
       const updateData: Record<string, unknown> = {};
       const facts: string[] = [];
 
@@ -161,7 +134,6 @@ async function main() {
       }
 
       if (enrichment.headquarters?.confidence && enrichment.headquarters.confidence >= CONFIDENCE_THRESHOLD) {
-        // Parse headquarters into city/country
         const hq = enrichment.headquarters.value;
         const parts = hq.split(',').map((p: string) => p.trim());
         if (parts.length >= 2) {
@@ -171,12 +143,6 @@ async function main() {
         console.log(`   ✓ Headquarters (${(enrichment.headquarters.confidence * 100).toFixed(0)}%)`);
       }
 
-      if (enrichment.employeeCount?.confidence && enrichment.employeeCount.confidence >= CONFIDENCE_THRESHOLD) {
-        facts.push(`Employees: ${enrichment.employeeCount.value}`);
-        console.log(`   ✓ Employee count (${(enrichment.employeeCount.confidence * 100).toFixed(0)}%)`);
-      }
-
-      // Facts to create
       if (enrichment.totalRaised?.confidence && enrichment.totalRaised.confidence >= CONFIDENCE_THRESHOLD) {
         facts.push(`Total raised: $${(enrichment.totalRaised.value / 1000000).toFixed(1)}M`);
         console.log(`   ✓ Total raised (${(enrichment.totalRaised.confidence * 100).toFixed(0)}%)`);
@@ -192,49 +158,34 @@ async function main() {
         console.log(`   ✓ Products (${(enrichment.keyProducts.confidence * 100).toFixed(0)}%)`);
       }
 
-      // Log low confidence items
-      for (const [key, data] of Object.entries(enrichment)) {
-        if (data && typeof data === 'object' && 'confidence' in data) {
-          if (data.confidence > 0 && data.confidence < CONFIDENCE_THRESHOLD) {
-            console.log(`   ○ ${key} skipped (${((data.confidence as number) * 100).toFixed(0)}% < ${CONFIDENCE_THRESHOLD * 100}%)`);
-          }
-        }
-      }
-
       if (Object.keys(updateData).length > 0 || facts.length > 0) {
         results.enriched++;
 
-        if (!dryRun) {
-          // Update organization
-          if (Object.keys(updateData).length > 0) {
-            await prisma.organization.update({
-              where: { id: org.id },
-              data: updateData,
-            });
-          }
+        if (Object.keys(updateData).length > 0) {
+          await prisma.organization.update({
+            where: { id: org.id },
+            data: updateData,
+          });
+        }
 
-          // Create facts
-          for (const factContent of facts) {
-            const factType = factContent.startsWith('Total raised') ? 'FUNDING'
-              : factContent.startsWith('Investors') ? 'INVESTORS'
-              : factContent.startsWith('Employees') ? 'COMPANY_INFO'
-              : 'PRODUCT';
-            const key = factContent.startsWith('Total raised') ? 'total_raised'
-              : factContent.startsWith('Investors') ? 'notable_investors'
-              : factContent.startsWith('Employees') ? 'employee_count'
-              : 'products';
+        for (const factContent of facts) {
+          const factType = factContent.startsWith('Total raised') ? 'FUNDING'
+            : factContent.startsWith('Investors') ? 'INVESTORS'
+            : 'PRODUCT';
+          const key = factContent.startsWith('Total raised') ? 'total_raised'
+            : factContent.startsWith('Investors') ? 'notable_investors'
+            : 'products';
 
-            await prisma.fact.create({
-              data: {
-                organizationId: org.id,
-                factType,
-                key,
-                value: factContent,
-                confidence: 0.8,
-                sourceType: 'AI_ENRICHMENT',
-              },
-            });
-          }
+          await prisma.fact.create({
+            data: {
+              organizationId: org.id,
+              factType,
+              key,
+              value: factContent,
+              confidence: 0.8,
+              sourceType: 'AI_ENRICHMENT',
+            },
+          });
         }
 
         console.log(`   → ${Object.keys(updateData).length} fields updated, ${facts.length} facts added`);
@@ -243,24 +194,18 @@ async function main() {
         console.log(`   → No high-confidence data found`);
       }
 
-      // Rate limiting
       await sleep(DELAY_BETWEEN_CALLS);
-
     } catch (error) {
       results.errors++;
       console.error(`   ✗ Error: ${error}`);
     }
   }
 
-  console.log('\n' + '='.repeat(50));
-  console.log('📈 Summary:');
-  console.log(`   Processed: ${results.processed}`);
+  console.log('\\n' + '='.repeat(50));
+  console.log('📈 Enrichment Summary:');
   console.log(`   Enriched: ${results.enriched}`);
   console.log(`   Skipped (low confidence): ${results.skipped}`);
   console.log(`   Errors: ${results.errors}`);
-  if (dryRun) {
-    console.log('\n   ⚠️  DRY RUN - no changes were saved');
-  }
 }
 
 main()

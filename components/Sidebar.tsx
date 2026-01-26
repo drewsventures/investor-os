@@ -9,6 +9,7 @@ import {
   Users,
   TrendingUp,
   Briefcase,
+  Wallet,
   Brain,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'People', href: '/people', icon: Users },
   { name: 'Deals', href: '/deals', icon: TrendingUp },
   { name: 'Syndicate', href: '/syndicate', icon: Briefcase },
+  { name: 'Fund I', href: '/fund', icon: Wallet },
   { name: 'AI Brain', href: '/brain', icon: Brain },
 ];
 

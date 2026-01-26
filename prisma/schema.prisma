@@ -186,6 +186,7 @@ model Organization {
   facts           Fact[]
   metrics         OrganizationMetric[]
   syndicateDeals  SyndicateDeal[]
+  fundInvestments FundInvestment[]
 
   @@index([canonicalKey])
   @@index([organizationType])
@@ -643,6 +644,193 @@ model SyndicateDeal {
   @@index([isHostedDeal])
   @@index([market])
   @@index([companyName])
+}
+
+// ============================================================================
+// RBV FUND I PORTFOLIO
+// ============================================================================
+
+// Fund investment type
+enum FundInvestmentType {
+  TOKEN_SAFT      // Token/SAFT investments
+  EQUITY          // Equity positions
+  TPA             // Token Purchase Agreements
+  WARRANT         // Token warrants
+}
+
+// Fund investment status
+enum FundInvestmentStatus {
+  ACTIVE          // Currently held
+  PARTIALLY_REALIZED  // Some tokens/equity sold
+  FULLY_REALIZED  // Completely exited
+  WRITTEN_OFF     // Written off
+}
+
+// FUND INVESTMENTS - RBV Fund I portfolio positions
+model FundInvestment {
+  id                  String   @id @default(cuid())
+
+  // Fund Info
+  fundName            String   @default("Red Beard Ventures Fund I LP")
+
+  // Company Info
+  companyName         String
+  nickname            String?  // Short name or token ticker
+
+  // Investment Classification
+  investmentType      FundInvestmentType @default(TOKEN_SAFT)
+  status              FundInvestmentStatus @default(ACTIVE)
+  sector              String?  // AI, DeFi, Gaming, Infrastructure, SocialFi, DePIN, Consumer
+
+  // Investment Details
+  amountInvested      Decimal  @db.Decimal(15, 2)
+  investmentDate      DateTime?
+
+  // Token Details (for TOKEN_SAFT, TPA, WARRANT)
+  tokenName           String?  // OORT, SAGA, LMWR, etc.
+  tokenQuantity       Decimal? @db.Decimal(20, 4)  // Number of tokens
+  currentPrice        Decimal? @db.Decimal(15, 8)  // Current token price
+  tokenValue          Decimal? @db.Decimal(15, 2)  // tokenQuantity * currentPrice
+
+  // Equity Details (for EQUITY)
+  equityValue         Decimal? @db.Decimal(15, 2)  // Current equity valuation
+  ownershipPercent    Decimal? @db.Decimal(10, 6)
+
+  // Combined Value
+  totalValue          Decimal? @db.Decimal(15, 2)  // tokenValue + equityValue
+
+  // Vesting Schedule (for tokens)
+  launchDate          DateTime?
+  cliffMonths         Int?     // Cliff period in months
+  initialReleasePercent Decimal? @db.Decimal(5, 2)  // % released at cliff
+  vestingPeriodicity  String?  // monthly, daily, quarterly
+  vestingPeriods      Int?     // Number of vesting periods
+  vestingEndDate      DateTime?
+
+  // Liquidity Status
+  isLiquid            Boolean  @default(false)  // Is token live/tradeable?
+  liquidBalance       Decimal? @db.Decimal(15, 2)  // Value of liquid/available tokens
+  lockedBalance       Decimal? @db.Decimal(15, 2)  // Value of locked/vesting tokens
+  stakedTokens        Decimal? @db.Decimal(20, 4)  // Tokens currently staked
+
+  // Realized Gains
+  tokensRealized      Decimal? @db.Decimal(20, 4)  // Tokens sold
+  realizedValue       Decimal? @db.Decimal(15, 2)  // Cash received from sales
+  realizedPercent     Decimal? @db.Decimal(5, 2)   // % of position realized
+
+  // Linked Organization (optional)
+  organizationId      String?
+  organization        Organization? @relation(fields: [organizationId], references: [id])
+
+  // Notes
+  notes               String?  @db.Text
+  attioNotes          String?  @db.Text  // Notes from Attio
+
+  // Metadata
+  lastPriceUpdate     DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Related records
+  tokenSales          FundTokenSale[]
+  snapshots           FundInvestmentSnapshot[]
+
+  @@index([fundName])
+  @@index([companyName])
+  @@index([investmentType])
+  @@index([status])
+  @@index([sector])
+  @@index([isLiquid])
+  @@index([organizationId])
+}
+
+// FUND TOKEN SALES - Track individual token sale transactions
+model FundTokenSale {
+  id                  String   @id @default(cuid())
+
+  fundInvestmentId    String
+  fundInvestment      FundInvestment @relation(fields: [fundInvestmentId], references: [id], onDelete: Cascade)
+
+  // Sale Details
+  saleDate            DateTime
+  tokensSold          Decimal  @db.Decimal(20, 4)
+  pricePerToken       Decimal  @db.Decimal(15, 8)
+  totalProceeds       Decimal  @db.Decimal(15, 2)
+
+  // Notes
+  notes               String?
+
+  createdAt           DateTime @default(now())
+
+  @@index([fundInvestmentId, saleDate])
+}
+
+// FUND INVESTMENT SNAPSHOTS - Monthly/periodic valuations
+model FundInvestmentSnapshot {
+  id                  String   @id @default(cuid())
+
+  fundInvestmentId    String
+  fundInvestment      FundInvestment @relation(fields: [fundInvestmentId], references: [id], onDelete: Cascade)
+
+  // Snapshot Date
+  snapshotDate        DateTime
+
+  // Values at snapshot
+  tokenPrice          Decimal? @db.Decimal(15, 8)
+  tokenValue          Decimal? @db.Decimal(15, 2)
+  equityValue         Decimal? @db.Decimal(15, 2)
+  totalValue          Decimal? @db.Decimal(15, 2)
+  liquidBalance       Decimal? @db.Decimal(15, 2)
+
+  createdAt           DateTime @default(now())
+
+  @@unique([fundInvestmentId, snapshotDate])
+  @@index([snapshotDate])
+}
+
+// FUND METRICS - Overall fund performance tracking
+model FundMetric {
+  id                  String   @id @default(cuid())
+
+  fundName            String   @default("Red Beard Ventures Fund I LP")
+  snapshotDate        DateTime
+
+  // Fund Size & Deployment
+  totalCommitted      Decimal? @db.Decimal(15, 2)  // Total LP commitments
+  totalCalled         Decimal? @db.Decimal(15, 2)  // Capital called
+  totalInvested       Decimal? @db.Decimal(15, 2)  // Capital deployed
+  reservesRemaining   Decimal? @db.Decimal(15, 2)  // Dry powder
+
+  // Portfolio Value
+  tokenValue          Decimal? @db.Decimal(15, 2)  // Total token holdings value
+  equityValue         Decimal? @db.Decimal(15, 2)  // Total equity holdings value
+  totalPortfolioValue Decimal? @db.Decimal(15, 2)  // Combined NAV
+
+  // Liquidity
+  liquidBalance       Decimal? @db.Decimal(15, 2)  // Liquid/available value
+  nonLiquidBalance    Decimal? @db.Decimal(15, 2)  // Locked/vesting value
+  liquidPercent       Decimal? @db.Decimal(5, 2)
+
+  // Realizations
+  totalRealized       Decimal? @db.Decimal(15, 2)  // Cash from token sales
+  totalDistributed    Decimal? @db.Decimal(15, 2)  // Distributions to LPs
+  recycledCapital     Decimal? @db.Decimal(15, 2)  // Reinvested proceeds
+
+  // Performance Metrics
+  tvpiMultiple        Decimal? @db.Decimal(10, 4)  // (NAV + Distributed) / Called
+  dpiMultiple         Decimal? @db.Decimal(10, 4)  // Distributed / Called
+  rvpiMultiple        Decimal? @db.Decimal(10, 4)  // NAV / Called
+  irr                 Decimal? @db.Decimal(10, 4)  // Internal Rate of Return
+
+  // Portfolio Stats
+  totalInvestments    Int?     // Number of portfolio companies
+  tokensLive          Int?     // Number of tokens that are live/tradeable
+  tokensStaked        Int?     // Number of positions with staked tokens
+
+  createdAt           DateTime @default(now())
+
+  @@unique([fundName, snapshotDate])
+  @@index([fundName, snapshotDate])
 }
 
 // ============================================================================

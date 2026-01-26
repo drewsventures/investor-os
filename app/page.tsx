@@ -9,6 +9,8 @@ import {
   DollarSign,
   Brain,
   ArrowRight,
+  Calendar,
+  Wallet,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -33,12 +35,35 @@ interface DashboardStats {
   };
 }
 
+interface VestingEvent {
+  id: string;
+  companyName: string;
+  tokenName: string | null;
+  vestingDate: string;
+  eventType: 'cliff' | 'vesting' | 'final';
+  tokensUnlocking: number | null;
+  estimatedValue: number | null;
+  isLiquid: boolean;
+}
+
+interface FundSummary {
+  totalInvestments: number;
+  totalInvested: number;
+  totalValue: number;
+  tvpi: number;
+  dpi: number;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [vestingEvents, setVestingEvents] = useState<VestingEvent[]>([]);
+  const [fundSummary, setFundSummary] = useState<FundSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchVestingData();
+    fetchFundData();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -80,6 +105,26 @@ export default function Dashboard() {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVestingData = async () => {
+    try {
+      const res = await fetch('/api/fund/vesting?days=90');
+      const data = await res.json();
+      setVestingEvents(data.events || []);
+    } catch (error) {
+      console.error('Failed to fetch vesting data:', error);
+    }
+  };
+
+  const fetchFundData = async () => {
+    try {
+      const res = await fetch('/api/fund');
+      const data = await res.json();
+      setFundSummary(data.summary || null);
+    } catch (error) {
+      console.error('Failed to fetch fund data:', error);
     }
   };
 
@@ -249,6 +294,113 @@ export default function Dashboard() {
               </div>
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Fund I Summary & Vesting Calendar */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Fund I Summary */}
+        {fundSummary && (
+          <Link href="/fund" className="group">
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
+                    <Wallet className="w-5 h-5 text-white" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-purple-900">RBV Fund I</h2>
+                </div>
+                <ArrowRight className="w-5 h-5 text-purple-400 group-hover:text-purple-600 transition-colors" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    ${(fundSummary.totalInvested / 1000000).toFixed(1)}M
+                  </div>
+                  <div className="text-sm text-purple-600">Invested</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    ${(fundSummary.totalValue / 1000000).toFixed(1)}M
+                  </div>
+                  <div className="text-sm text-purple-600">Portfolio Value</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    {fundSummary.tvpi.toFixed(2)}x
+                  </div>
+                  <div className="text-sm text-purple-600">TVPI</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    {fundSummary.totalInvestments}
+                  </div>
+                  <div className="text-sm text-purple-600">Positions</div>
+                </div>
+              </div>
+            </div>
+          </Link>
+        )}
+
+        {/* Upcoming Vesting Schedule */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-orange-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Upcoming Vesting</h2>
+            </div>
+            <Link
+              href="/fund"
+              className="text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
+            >
+              View all <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          {vestingEvents.length > 0 ? (
+            <div className="space-y-3">
+              {vestingEvents.slice(0, 5).map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${
+                      event.eventType === 'cliff' ? 'bg-blue-500' :
+                      event.eventType === 'final' ? 'bg-green-500' : 'bg-orange-500'
+                    }`} />
+                    <div>
+                      <div className="font-medium text-slate-900">{event.companyName}</div>
+                      <div className="text-xs text-slate-500">
+                        {event.tokenName && <span className="font-mono">{event.tokenName}</span>}
+                        {event.tokenName && ' · '}
+                        {event.eventType === 'cliff' ? 'Cliff Release' :
+                         event.eventType === 'final' ? 'Final Vesting' : 'Vesting'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-slate-900">
+                      {new Date(event.vestingDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+                    {event.estimatedValue && event.estimatedValue > 0 && (
+                      <div className="text-xs text-green-600">
+                        ~${(event.estimatedValue / 1000).toFixed(1)}K
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500">
+              No upcoming vesting events in the next 90 days
+            </div>
+          )}
         </div>
       </div>
 

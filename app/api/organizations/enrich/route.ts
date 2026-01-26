@@ -112,10 +112,6 @@ export async function POST(request: NextRequest) {
         updateData.country = parts[parts.length - 1];
       }
     }
-    if (highConfidenceData.employeeCount) {
-      updateData.employeeRange = highConfidenceData.employeeCount;
-    }
-
     // Save facts for additional data
     const factsToCreate: Array<{
       organizationId: string;
@@ -125,6 +121,18 @@ export async function POST(request: NextRequest) {
       confidence: number;
       sourceType: string;
     }> = [];
+
+    // Employee count stored as a fact (no field in Organization model)
+    if (highConfidenceData.employeeCount) {
+      factsToCreate.push({
+        organizationId: org.id,
+        factType: 'COMPANY_INFO',
+        key: 'employee_count',
+        value: highConfidenceData.employeeCount as string,
+        confidence: enrichment.employeeCount?.confidence || 0.7,
+        sourceType: 'AI_ENRICHMENT',
+      });
+    }
 
     if (highConfidenceData.totalRaised) {
       factsToCreate.push({
