@@ -76,7 +76,7 @@ export function AIChat({
         enhancedPrompt = contextStr;
       }
 
-      const response = await fetch('/api/investor-os/brain', {
+      const response = await fetch('/api/brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
