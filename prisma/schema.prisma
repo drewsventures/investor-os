@@ -134,6 +134,9 @@ model Person {
   emailLinks          EmailPersonLink[]
   relationshipStrength RelationshipStrength?
 
+  // Link to User account (if this person is a team member)
+  userAccount         User?
+
   @@index([email])
   @@index([canonicalKey])
   @@index([privacyTier])
@@ -855,6 +858,10 @@ model GmailConnection {
   syncCursor      String?   // Gmail history ID for incremental sync
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  // Owner user (for multi-user support)
+  ownerUserId     String?
+  owner           User?     @relation(fields: [ownerUserId], references: [id])
 }
 
 // EMAIL MESSAGE - Stored email messages
@@ -940,6 +947,117 @@ model RelationshipStrength {
   calculatedAt     DateTime  @default(now())
 
   @@index([strength])
+}
+
+// ============================================================================
+// USER AUTHENTICATION & PERMISSIONS
+// ============================================================================
+
+// Team roles
+enum TeamRole {
+  OWNER    // Full access to everything
+  ADMIN    // Manage settings, see shared content
+  MEMBER   // Standard access with permissions
+}
+
+// TEAM - Single team for Red Beard Ventures
+model Team {
+  id                String    @id @default(cuid())
+  name              String    @unique
+  slug              String    @unique
+  allowedDomains    String[]  // ["denariilabs.xyz", "redbeard.ventures"]
+  defaultVisibility String    @default("PRIVATE")  // PRIVATE, SHARED
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  users             User[]
+
+  @@index([slug])
+}
+
+// USER - Application user (links to Supabase Auth)
+model User {
+  id                String    @id @default(cuid())
+  supabaseUserId    String    @unique  // Supabase Auth UUID
+  email             String    @unique
+  fullName          String
+  avatarUrl         String?
+  teamId            String
+  team              Team      @relation(fields: [teamId], references: [id])
+  role              TeamRole  @default(MEMBER)
+  defaultVisibility String    @default("PRIVATE")
+
+  // Link to Person record (if this user is also tracked as a contact)
+  personId          String?   @unique
+  person            Person?   @relation(fields: [personId], references: [id])
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastActiveAt      DateTime?
+
+  // Relationships
+  contentPermissions  ContentPermission[]
+  accessRequests      AccessRequest[]     @relation("Requester")
+  ownedRequests       AccessRequest[]     @relation("ContentOwner")
+  accessLogs          AccessLog[]
+  gmailConnections    GmailConnection[]
+
+  @@index([supabaseUserId])
+  @@index([teamId])
+  @@index([email])
+}
+
+// CONTENT PERMISSION - Per-item visibility controls
+model ContentPermission {
+  id               String    @id @default(cuid())
+  contentType      String    // EMAIL_MESSAGE, CONVERSATION, INVESTMENT, DEAL
+  contentId        String
+  ownerId          String
+  owner            User      @relation(fields: [ownerId], references: [id])
+  visibility       String    @default("PRIVATE")  // PRIVATE, SHARED, RESTRICTED
+  allowedUserIds   String[]  @default([])
+  hideParticipants Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([contentType, contentId])
+  @@index([ownerId])
+  @@index([contentType, visibility])
+}
+
+// ACCESS REQUEST - Request permission to view private content
+model AccessRequest {
+  id              String    @id @default(cuid())
+  requesterId     String
+  requester       User      @relation("Requester", fields: [requesterId], references: [id])
+  contentType     String
+  contentId       String
+  ownerId         String
+  owner           User      @relation("ContentOwner", fields: [ownerId], references: [id])
+  reason          String?   @db.Text
+  status          String    @default("PENDING")  // PENDING, APPROVED, DENIED
+  respondedAt     DateTime?
+  responseNote    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([requesterId])
+  @@index([ownerId, status])
+  @@index([contentType, contentId])
+}
+
+// ACCESS LOG - Audit trail for content access
+model AccessLog {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  contentType     String
+  contentId       String
+  action          String    // VIEW_METADATA, VIEW_FULL, REQUEST_ACCESS, GRANT_ACCESS, CHANGE_VISIBILITY
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([contentType, contentId, createdAt])
 }
 
 // ============================================================================
