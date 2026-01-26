@@ -1,9 +1,11 @@
 /**
  * Supabase Auth Client Configuration (Browser-only)
  * For use in client components
+ * Uses @supabase/ssr to ensure PKCE code verifier is stored in cookies
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Singleton client for browser
 let browserClient: SupabaseClient | null = null;
@@ -18,6 +20,7 @@ export function isSupabaseConfigured(): boolean {
 /**
  * Browser-side Supabase client (for client components)
  * Returns null if Supabase is not configured
+ * Uses @supabase/ssr to store PKCE code verifier in cookies for SSR compatibility
  */
 export function createBrowserClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,11 +31,7 @@ export function createBrowserClient(): SupabaseClient | null {
   }
 
   if (!browserClient) {
-    browserClient = createClient(url, anonKey, {
-      auth: {
-        flowType: 'pkce',
-      },
-    });
+    browserClient = createSSRBrowserClient(url, anonKey);
   }
   return browserClient;
 }
