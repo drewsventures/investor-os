@@ -134,6 +134,9 @@ model Person {
   emailLinks          EmailPersonLink[]
   relationshipStrength RelationshipStrength?
 
+  // Updates (notes, news, etc.)
+  updates             Update[]
+
   // Link to User account (if this person is a team member)
   userAccount         User?
 
@@ -197,6 +200,9 @@ model Organization {
 
   // Gmail integration
   emailLinks      EmailOrgLink[]
+
+  // Updates (notes, news, etc.)
+  updates         Update[]
 
   @@index([canonicalKey])
   @@index([organizationType])
@@ -309,6 +315,7 @@ model Deal {
   facts           Fact[]
   investment      Investment? // If closed
   stageHistory    DealStageHistory[]
+  updates         Update[]
 
   @@index([organizationId])
   @@index([stage])
@@ -996,11 +1003,13 @@ model User {
   lastActiveAt      DateTime?
 
   // Relationships
-  contentPermissions  ContentPermission[]
-  accessRequests      AccessRequest[]     @relation("Requester")
-  ownedRequests       AccessRequest[]     @relation("ContentOwner")
-  accessLogs          AccessLog[]
-  gmailConnections    GmailConnection[]
+  contentPermissions    ContentPermission[]
+  accessRequests        AccessRequest[]     @relation("Requester")
+  ownedRequests         AccessRequest[]     @relation("ContentOwner")
+  accessLogs            AccessLog[]
+  gmailConnections      GmailConnection[]
+  firefliesConnections  FirefliesConnection[]
+  updates               Update[]
 
   @@index([supabaseUserId])
   @@index([teamId])
@@ -1058,6 +1067,86 @@ model AccessLog {
 
   @@index([userId, createdAt])
   @@index([contentType, contentId, createdAt])
+}
+
+// ============================================================================
+// FIREFLIES INTEGRATION
+// ============================================================================
+
+// FIREFLIES CONNECTION - API key storage per user
+model FirefliesConnection {
+  id              String    @id @default(cuid())
+  apiKey          String    @db.Text  // Fireflies API key
+  firefliesUserId String?              // Fireflies user ID
+  email           String    @unique   // User's Fireflies email
+  lastSyncAt      DateTime?
+  syncCursor      DateTime?            // Last synced transcript date
+  webhookSecret   String?              // For validating webhooks
+  webhookEnabled  Boolean   @default(false)
+
+  // Owner user
+  ownerUserId     String
+  owner           User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([ownerUserId])
+  @@index([email])
+}
+
+// ============================================================================
+// UPDATES / ACTIVITY TRACKING
+// ============================================================================
+
+// Update types for activity tracking
+enum UpdateType {
+  NOTE              // Manual note
+  NEWS              // External news article
+  INVESTOR_UPDATE   // Forwarded investor update email
+  TWITTER           // Twitter/X post
+  LINKEDIN          // LinkedIn post
+  PRESS_RELEASE     // PR announcement
+  OTHER             // Other update
+}
+
+// UPDATE - Flexible model for all manual/automated updates
+model Update {
+  id              String      @id @default(cuid())
+  type            UpdateType  @default(NOTE)
+  title           String?
+  content         String      @db.Text
+  updateDate      DateTime    @default(now())
+
+  // Source info (for news/social)
+  sourceUrl       String?
+  sourceAuthor    String?     // Article author, twitter handle, etc.
+  sourceName      String?     // "TechCrunch", "Twitter", etc.
+
+  // Links to entities
+  personId        String?
+  person          Person?     @relation(fields: [personId], references: [id], onDelete: SetNull)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  dealId          String?
+  deal            Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  // Who added it
+  authorId        String
+  author          User        @relation(fields: [authorId], references: [id])
+
+  // Flexible metadata storage
+  metadata        Json?       // Type-specific data (tweet_id, article_image, etc.)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([personId])
+  @@index([organizationId])
+  @@index([dealId])
+  @@index([type])
+  @@index([updateDate])
+  @@index([authorId])
 }
 
 // ============================================================================

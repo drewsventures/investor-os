@@ -18,6 +18,9 @@ import {
   AlertCircle,
   Users,
   Building2,
+  Video,
+  Key,
+  Loader2,
 } from 'lucide-react';
 
 interface GmailStats {
@@ -45,12 +48,38 @@ interface GmailStatus {
   stats: GmailStats | null;
 }
 
+interface FirefliesStatus {
+  connected: boolean;
+  connection: {
+    email: string;
+    firefliesUserId: string | null;
+    lastSyncAt: string | null;
+    syncCursor: string | null;
+    webhookEnabled: boolean;
+    connectedAt: string;
+  } | null;
+  stats: {
+    totalMeetings: number;
+    linkedParticipants: number;
+    linkedOrganizations: number;
+    lastSyncAt: string | null;
+    oldestMeeting: string | null;
+    newestMeeting: string | null;
+  } | null;
+}
+
 function IntegrationsContent() {
   const searchParams = useSearchParams();
   const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
+  const [firefliesStatus, setFirefliesStatus] = useState<FirefliesStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [firefliesLoading, setFirefliesLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [firefliesSyncing, setFirefliesSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [firefliesDisconnecting, setFirefliesDisconnecting] = useState(false);
+  const [firefliesApiKey, setFirefliesApiKey] = useState('');
+  const [firefliesConnecting, setFirefliesConnecting] = useState(false);
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -58,6 +87,7 @@ function IntegrationsContent() {
 
   useEffect(() => {
     fetchGmailStatus();
+    fetchFirefliesStatus();
 
     // Check for OAuth callback messages
     const gmailParam = searchParams.get('gmail');
@@ -138,6 +168,100 @@ function IntegrationsContent() {
       setMessage({ type: 'error', text: 'Failed to disconnect' });
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const fetchFirefliesStatus = async () => {
+    try {
+      setFirefliesLoading(true);
+      const res = await fetch('/api/fireflies/status');
+      const data = await res.json();
+      setFirefliesStatus(data);
+    } catch (error) {
+      console.error('Failed to fetch Fireflies status:', error);
+    } finally {
+      setFirefliesLoading(false);
+    }
+  };
+
+  const handleFirefliesConnect = async () => {
+    if (!firefliesApiKey.trim()) {
+      setMessage({ type: 'error', text: 'Please enter your Fireflies API key' });
+      return;
+    }
+
+    try {
+      setFirefliesConnecting(true);
+      const res = await fetch('/api/fireflies/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: firefliesApiKey }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Fireflies connected successfully!' });
+        setFirefliesApiKey('');
+        fetchFirefliesStatus();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to connect Fireflies' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to connect Fireflies' });
+    } finally {
+      setFirefliesConnecting(false);
+    }
+  };
+
+  const handleFirefliesSync = async () => {
+    try {
+      setFirefliesSyncing(true);
+      const res = await fetch('/api/fireflies/sync', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage({
+          type: 'success',
+          text: `Synced ${data.transcriptsCreated} new meetings!`,
+        });
+        fetchFirefliesStatus();
+      } else {
+        setMessage({
+          type: 'error',
+          text: data.errors?.[0] || 'Sync failed',
+        });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to sync meetings' });
+    } finally {
+      setFirefliesSyncing(false);
+    }
+  };
+
+  const handleFirefliesDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect Fireflies? This will remove the connection but keep synced meetings.')) {
+      return;
+    }
+
+    try {
+      setFirefliesDisconnecting(true);
+      const res = await fetch('/api/fireflies/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteMeetings: false }),
+      });
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Fireflies disconnected' });
+        fetchFirefliesStatus();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to disconnect' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to disconnect' });
+    } finally {
+      setFirefliesDisconnecting(false);
     }
   };
 
@@ -387,6 +511,200 @@ function IntegrationsContent() {
           </div>
         </div>
 
+        {/* Fireflies Integration Card */}
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                  <Video className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Fireflies.ai</h2>
+                  <p className="text-slate-600">
+                    Sync meeting transcripts to track conversations
+                  </p>
+                </div>
+              </div>
+
+              {/* Status badge */}
+              {!firefliesLoading && (
+                <div
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    firefliesStatus?.connected
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {firefliesStatus?.connected ? 'Connected' : 'Not connected'}
+                </div>
+              )}
+            </div>
+
+            {firefliesLoading ? (
+              <div className="mt-6 animate-pulse space-y-4">
+                <div className="h-10 bg-slate-100 rounded" />
+                <div className="h-20 bg-slate-100 rounded" />
+              </div>
+            ) : firefliesStatus?.connected ? (
+              <>
+                {/* Connected state */}
+                <div className="mt-6 bg-slate-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-sm text-slate-500">Connected as</div>
+                      <div className="font-medium text-slate-900">
+                        {firefliesStatus.connection?.email}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-slate-500">Last sync</div>
+                      <div className="font-medium text-slate-900">
+                        {formatDate(firefliesStatus.stats?.lastSyncAt || null)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-slate-500">Total meetings</div>
+                      <div className="font-medium text-slate-900">
+                        {firefliesStatus.stats?.totalMeetings.toLocaleString() || 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-slate-500">Connected</div>
+                      <div className="font-medium text-slate-900">
+                        {formatDate(firefliesStatus.connection?.connectedAt || null)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                {firefliesStatus.stats && firefliesStatus.stats.totalMeetings > 0 && (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-green-600 mb-1">
+                        <Video className="w-4 h-4" />
+                        <span className="text-sm font-medium">Meetings</span>
+                      </div>
+                      <div className="text-2xl font-bold text-green-900">
+                        {firefliesStatus.stats.totalMeetings.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-purple-600 mb-1">
+                        <Users className="w-4 h-4" />
+                        <span className="text-sm font-medium">Linked People</span>
+                      </div>
+                      <div className="text-2xl font-bold text-purple-900">
+                        {firefliesStatus.stats.linkedParticipants.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-amber-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-amber-600 mb-1">
+                        <Building2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Linked Orgs</span>
+                      </div>
+                      <div className="text-2xl font-bold text-amber-900">
+                        {firefliesStatus.stats.linkedOrganizations.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={handleFirefliesSync}
+                    disabled={firefliesSyncing}
+                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${firefliesSyncing ? 'animate-spin' : ''}`}
+                    />
+                    {firefliesSyncing ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                  <button
+                    onClick={handleFirefliesDisconnect}
+                    disabled={firefliesDisconnecting}
+                    className="flex items-center gap-2 text-red-600 hover:text-red-700 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {firefliesDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Not connected state */}
+                <div className="mt-6">
+                  <p className="text-slate-600 mb-4">
+                    Connect your Fireflies.ai account to:
+                  </p>
+                  <ul className="space-y-2 text-sm text-slate-600 mb-6">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      Automatically sync meeting transcripts
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      Link meetings to people and organizations
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      Track all your investor conversations
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      View transcripts in the activity feed
+                    </li>
+                  </ul>
+
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <Key className="w-4 h-4 inline mr-1" />
+                        Fireflies API Key
+                      </label>
+                      <input
+                        type="password"
+                        value={firefliesApiKey}
+                        onChange={(e) => setFirefliesApiKey(e.target.value)}
+                        placeholder="Enter your Fireflies API key"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <button
+                      onClick={handleFirefliesConnect}
+                      disabled={firefliesConnecting || !firefliesApiKey.trim()}
+                      className="self-end flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {firefliesConnecting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Video className="w-4 h-4" />
+                      )}
+                      {firefliesConnecting ? 'Connecting...' : 'Connect'}
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-500 mt-4">
+                    Get your API key from{' '}
+                    <a
+                      href="https://app.fireflies.ai/api/settings"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-600 hover:underline"
+                    >
+                      Fireflies Settings
+                    </a>
+                    . We only read your meeting transcripts.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Other integrations placeholder */}
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-2">
@@ -395,9 +713,8 @@ function IntegrationsContent() {
           <p className="text-slate-600 mb-4">
             More integrations are on the way:
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[
-              { name: 'Fireflies.ai', desc: 'Meeting transcripts' },
               { name: 'LinkedIn', desc: 'Profile enrichment' },
               { name: 'Crunchbase', desc: 'Company data' },
               { name: 'AngelList', desc: 'Syndicate data' },

@@ -18,11 +18,14 @@ import {
   Linkedin,
   Calendar,
   DollarSign,
-  Inbox
+  Inbox,
+  Activity
 } from 'lucide-react';
 import EmailActivityFeed from '@/components/EmailActivityFeed';
 import RelationshipSummaryCard from '@/components/RelationshipSummaryCard';
 import ActionItemsPanel from '@/components/ActionItemsPanel';
+import ActivityFeed from '@/components/activity/ActivityFeed';
+import UpdateEditor from '@/components/updates/UpdateEditor';
 
 interface Organization {
   id: string;
@@ -77,7 +80,8 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'conversations' | 'tasks' | 'lp' | 'emails'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'organizations' | 'conversations' | 'tasks' | 'lp' | 'emails'>('overview');
+  const [showUpdateEditor, setShowUpdateEditor] = useState(false);
 
   useEffect(() => {
     fetchPerson();
@@ -215,6 +219,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
             <nav className="flex space-x-8 px-6" aria-label="Tabs">
               {[
                 { id: 'overview', label: 'Overview', icon: Users },
+                { id: 'activity', label: 'Activity', icon: Activity },
                 { id: 'emails', label: 'Emails', icon: Inbox },
                 { id: 'organizations', label: 'Organizations', icon: Building2, count: person.organizations.length },
                 { id: 'conversations', label: 'Conversations', icon: MessageSquare, count: person.conversations.length },
@@ -335,6 +340,28 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
                       ))}
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Activity Tab */}
+            {activeTab === 'activity' && (
+              <div className="space-y-6">
+                {showUpdateEditor ? (
+                  <UpdateEditor
+                    personId={person.id}
+                    personName={person.fullName}
+                    onSave={() => {
+                      setShowUpdateEditor(false);
+                      // Refresh could be added here if needed
+                    }}
+                    onCancel={() => setShowUpdateEditor(false)}
+                  />
+                ) : (
+                  <ActivityFeed
+                    personId={person.id}
+                    onAddUpdate={() => setShowUpdateEditor(true)}
+                  />
                 )}
               </div>
             )}

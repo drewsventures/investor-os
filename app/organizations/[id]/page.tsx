@@ -27,9 +27,12 @@ import {
   Wand2,
   Loader2,
   Check,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 import { InvestmentSummaryCard } from '@/components/investor-os/InvestmentSummaryCard';
+import ActivityFeed from '@/components/activity/ActivityFeed';
+import UpdateEditor from '@/components/updates/UpdateEditor';
 import { HealthStatusCard } from '@/components/investor-os/HealthStatusCard';
 import { LastUpdateCard } from '@/components/investor-os/LastUpdateCard';
 import { MetricsDashboard } from '@/components/investor-os/MetricsDashboard';
@@ -156,8 +159,9 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const { id } = use(params);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'people' | 'deals' | 'conversations' | 'tasks' | 'facts'>('overview');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showUpdateEditor, setShowUpdateEditor] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichmentResult, setEnrichmentResult] = useState<{
     success: boolean;
@@ -535,6 +539,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             <nav className="flex space-x-8 px-6" aria-label="Tabs">
               {[
                 { id: 'overview', label: 'Overview', icon: Building2 },
+                { id: 'activity', label: 'Activity', icon: Activity },
                 { id: 'people', label: 'People', icon: Users, count: organization.people.length },
                 { id: 'deals', label: 'Deals', icon: Briefcase, count: organization.deals.length },
                 { id: 'conversations', label: 'Conversations', icon: MessageSquare, count: organization.conversations.length },
@@ -754,6 +759,27 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Activity Tab */}
+            {activeTab === 'activity' && (
+              <div className="space-y-6">
+                {showUpdateEditor ? (
+                  <UpdateEditor
+                    organizationId={organization.id}
+                    organizationName={organization.name}
+                    onSave={() => {
+                      setShowUpdateEditor(false);
+                    }}
+                    onCancel={() => setShowUpdateEditor(false)}
+                  />
+                ) : (
+                  <ActivityFeed
+                    organizationId={organization.id}
+                    onAddUpdate={() => setShowUpdateEditor(true)}
+                  />
+                )}
               </div>
             )}
 
