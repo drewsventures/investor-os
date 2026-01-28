@@ -30,29 +30,80 @@ export async function GET(request: NextRequest) {
 
     const organizations = await prisma.organization.findMany({
       where,
+      include: {
+        emailLinks: {
+          include: { email: { select: { sentAt: true } } }
+        },
+        conversations: {
+          select: { conversationDate: true }
+        },
+        updates: {
+          select: { updateDate: true }
+        }
+      },
       orderBy: [
         { organizationType: 'asc' },
         { name: 'asc' }
       ]
     });
 
+    // Calculate lastActivityAt for each organization
+    const orgsWithActivity = organizations.map(org => {
+      const dates: Date[] = [];
+
+      // Get most recent email date
+      org.emailLinks.forEach(link => {
+        if (link.email?.sentAt) {
+          dates.push(new Date(link.email.sentAt));
+        }
+      });
+
+      // Get most recent conversation date
+      org.conversations.forEach(conv => {
+        if (conv.conversationDate) {
+          dates.push(new Date(conv.conversationDate));
+        }
+      });
+
+      // Get most recent update date
+      org.updates.forEach(update => {
+        if (update.updateDate) {
+          dates.push(new Date(update.updateDate));
+        }
+      });
+
+      const lastActivityAt = dates.length > 0
+        ? new Date(Math.max(...dates.map(d => d.getTime())))
+        : null;
+
+      // Remove the included relations from the response
+      const { emailLinks, conversations, updates, ...orgData } = org;
+
+      return {
+        ...orgData,
+        lastActivityAt,
+        conversationCount: conversations.length,
+        emailCount: emailLinks.length,
+      };
+    });
+
     // Calculate summary metrics
-    const portfolioCount = organizations.filter(o => o.organizationType === 'PORTFOLIO').length;
-    const prospectCount = organizations.filter(o => o.organizationType === 'PROSPECT').length;
-    const lpCount = organizations.filter(o => o.organizationType === 'LP').length;
+    const portfolioCount = orgsWithActivity.filter(o => o.organizationType === 'PORTFOLIO').length;
+    const prospectCount = orgsWithActivity.filter(o => o.organizationType === 'PROSPECT').length;
+    const lpCount = orgsWithActivity.filter(o => o.organizationType === 'LP').length;
 
     const summary = {
-      totalOrganizations: organizations.length,
+      totalOrganizations: orgsWithActivity.length,
       portfolioCompanies: portfolioCount,
       prospects: prospectCount,
       lps: lpCount,
       totalInvested: 0,
       activeDeals: 0,
-      industryBreakdown: getIndustryBreakdown(organizations),
-      stageBreakdown: getStageBreakdown(organizations)
+      industryBreakdown: getIndustryBreakdown(orgsWithActivity),
+      stageBreakdown: getStageBreakdown(orgsWithActivity)
     };
 
-    return NextResponse.json({ organizations, summary });
+    return NextResponse.json({ organizations: orgsWithActivity, summary });
   } catch (error) {
     console.error('Failed to fetch organizations:', error);
     return NextResponse.json(

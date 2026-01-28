@@ -29,6 +29,15 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         lpCommitments: hasLPCommitment ? true : false,
+        emailLinks: {
+          include: { email: { select: { sentAt: true } } }
+        },
+        conversations: {
+          select: { conversationDate: true }
+        },
+        updates: {
+          select: { updateDate: true }
+        },
         _count: {
           select: {
             conversations: true,
@@ -38,14 +47,53 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: [
-        { lastContactedAt: 'desc' },
         { fullName: 'asc' }
       ]
     });
 
+    // Calculate lastActivityAt for each person
+    const peopleWithActivity = people.map(person => {
+      const dates: Date[] = [];
+
+      // Get all email dates
+      person.emailLinks.forEach(link => {
+        if (link.email?.sentAt) {
+          dates.push(new Date(link.email.sentAt));
+        }
+      });
+
+      // Get all conversation dates
+      person.conversations.forEach(conv => {
+        if (conv.conversationDate) {
+          dates.push(new Date(conv.conversationDate));
+        }
+      });
+
+      // Get all update dates
+      person.updates.forEach(update => {
+        if (update.updateDate) {
+          dates.push(new Date(update.updateDate));
+        }
+      });
+
+      const lastActivityAt = dates.length > 0
+        ? new Date(Math.max(...dates.map(d => d.getTime())))
+        : null;
+
+      // Remove the included relations from the response
+      const { emailLinks, conversations, updates, ...personData } = person;
+
+      return {
+        ...personData,
+        lastActivityAt,
+        conversationCount: person._count.conversations,
+        taskCount: person._count.tasks,
+      };
+    });
+
     // Get relationships for each person (top organizations they're associated with)
     const peopleWithOrgs = await Promise.all(
-      people.map(async (person) => {
+      peopleWithActivity.map(async (person) => {
         const relationships = await prisma.relationship.findMany({
           where: {
             sourceType: 'Person',
@@ -87,20 +135,20 @@ export async function GET(request: NextRequest) {
     );
 
     // Summary
-    const totalLPs = people.filter(p => p.lpCommitments && p.lpCommitments.length > 0).length;
-    const totalContactedLast30Days = people.filter(p => {
-      if (!p.lastContactedAt) return false;
+    const totalLPs = peopleWithActivity.filter(p => p.lpCommitments && p.lpCommitments.length > 0).length;
+    const totalContactedLast30Days = peopleWithActivity.filter(p => {
+      if (!p.lastActivityAt) return false;
       const daysSince = Math.floor(
-        (Date.now() - p.lastContactedAt.getTime()) / (1000 * 60 * 60 * 24)
+        (Date.now() - p.lastActivityAt.getTime()) / (1000 * 60 * 60 * 24)
       );
       return daysSince <= 30;
     }).length;
 
     const summary = {
-      totalPeople: people.length,
+      totalPeople: peopleWithActivity.length,
       totalLPs,
       contactedLast30Days: totalContactedLast30Days,
-      withEmail: people.filter(p => p.email).length
+      withEmail: peopleWithActivity.filter(p => p.email).length
     };
 
     return NextResponse.json({ people: peopleWithOrgs, summary });

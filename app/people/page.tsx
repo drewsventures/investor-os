@@ -32,7 +32,7 @@ interface Person {
   email: string | null;
   phone: string | null;
   linkedInUrl: string | null;
-  lastContactedAt: Date | null;
+  lastActivityAt: Date | null;
   organizations: Organization[];
   conversationCount: number;
   taskCount: number;
@@ -49,7 +49,7 @@ export default function PeoplePage() {
   const [summary, setSummary] = useState<PeopleSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'lastContact' | 'recent'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'recentActivity' | 'recent'>('recentActivity');
 
   useEffect(() => {
     fetchPeople();
@@ -83,10 +83,12 @@ export default function PeoplePage() {
     .sort((a, b) => {
       if (sortBy === 'name') {
         return a.fullName.localeCompare(b.fullName);
-      } else if (sortBy === 'lastContact') {
-        if (!a.lastContactedAt) return 1;
-        if (!b.lastContactedAt) return -1;
-        return new Date(b.lastContactedAt).getTime() - new Date(a.lastContactedAt).getTime();
+      } else if (sortBy === 'recentActivity') {
+        // Sort by activity, then by name for items without activity
+        if (!a.lastActivityAt && !b.lastActivityAt) return a.fullName.localeCompare(b.fullName);
+        if (!a.lastActivityAt) return 1;
+        if (!b.lastActivityAt) return -1;
+        return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
       } else {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
@@ -157,8 +159,8 @@ export default function PeoplePage() {
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
+            <option value="recentActivity">Recent Activity</option>
             <option value="name">Name</option>
-            <option value="lastContact">Last Contact</option>
             <option value="recent">Recently Added</option>
           </select>
         </div>
@@ -205,7 +207,7 @@ export default function PeoplePage() {
                   Activity
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Contact
+                  Last Activity
                 </th>
               </tr>
             </thead>
@@ -286,10 +288,10 @@ export default function PeoplePage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {person.lastContactedAt ? (
+                    {person.lastActivityAt ? (
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(person.lastContactedAt).toLocaleDateString()}
+                        {new Date(person.lastActivityAt).toLocaleDateString()}
                       </div>
                     ) : (
                       '—'
