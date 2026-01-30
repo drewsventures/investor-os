@@ -307,6 +307,76 @@ export class AttioClient {
     const lists = await this.listLists();
     return lists.find((l) => l.name === listName) || null;
   }
+
+  /**
+   * Get LP record by ID (for custom LP object in Attio)
+   */
+  async getLPRecordById(recordId: string): Promise<AttioLPRecord | null> {
+    try {
+      const response = await this.request<{ data: AttioRecord }>(
+        `/objects/lps/records/${recordId}`
+      );
+      return this.parseLPRecord(response.data);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get person by record ID
+   */
+  async getPersonById(recordId: string): Promise<AttioPerson | null> {
+    try {
+      const response = await this.request<{ data: AttioRecord }>(
+        `/objects/people/records/${recordId}`
+      );
+      return this.parsePerson(response.data);
+    } catch {
+      return null;
+    }
+  }
+
+  private parseLPRecord(record: AttioRecord): AttioLPRecord {
+    const values = record.values;
+
+    // Get name
+    const name = getTextValue(values, 'name');
+
+    // Get associated people references
+    const associatedPeopleRefs = values['associated_people'] || [];
+    const associatedPeopleIds = associatedPeopleRefs
+      .map((ref: any) => ref.target_record_id)
+      .filter(Boolean);
+
+    // Get associated company references
+    const associatedCompanyRefs = values['associated_company'] || [];
+    const associatedCompanyIds = associatedCompanyRefs
+      .map((ref: any) => ref.target_record_id)
+      .filter(Boolean);
+
+    // Get investment amounts
+    const syndicateAmount = values['total_amount_invested_in_rbv_syndicate']?.[0]?.currency_value || null;
+    const fundAmount = values['total_amount_invested_in_rbv_fund']?.[0]?.currency_value || null;
+
+    // Get phone
+    const phone = values['phone_number']?.[0]?.phone_number ||
+                  values['phone_number']?.[0]?.original_phone_number || null;
+
+    // Get telegram
+    const telegram = getTextValue(values, 'telegram_handle');
+
+    return {
+      id: record.id.record_id,
+      name,
+      associatedPeopleIds,
+      associatedCompanyIds,
+      syndicateInvestmentAmount: syndicateAmount,
+      fundInvestmentAmount: fundAmount,
+      phone,
+      telegram,
+      raw: record,
+    };
+  }
 }
 
 export interface AttioListEntry {
@@ -325,6 +395,18 @@ export interface AttioList {
   api_slug: string;
   name: string;
   parent_object: string[];
+}
+
+export interface AttioLPRecord {
+  id: string;
+  name: string | null;
+  associatedPeopleIds: string[];
+  associatedCompanyIds: string[];
+  syndicateInvestmentAmount: number | null;
+  fundInvestmentAmount: number | null;
+  phone: string | null;
+  telegram: string | null;
+  raw: AttioRecord;
 }
 
 /**

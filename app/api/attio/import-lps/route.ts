@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { createAttioClient, AttioListEntry } from '@/lib/attio';
+import { createAttioClient, AttioListEntry, AttioLPRecord, AttioPerson, AttioCompany } from '@/lib/attio';
 import { LPStage } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { listName = 'RBV LP Fundraising II' } = body;
+    const { listName = 'RBV LP Fundraising Fund II' } = body;
 
     // Create Attio client
     let attioClient;
@@ -147,8 +147,159 @@ export async function POST(request: NextRequest) {
 
         let personId: string | null = null;
         let organizationId: string | null = null;
+        let lpName: string | null = null;
 
-        if (parentType === 'people') {
+        if (parentType === 'lps') {
+          // Fetch the LP record from Attio's custom LP object
+          const attioLP = await attioClient.getLPRecordById(parentId);
+
+          if (!attioLP) {
+            results.skipped++;
+            results.details.push(`Skipped entry: could not fetch LP record ${parentId}`);
+            continue;
+          }
+
+          lpName = attioLP.name;
+
+          // Process associated people - get the first one as the primary contact
+          if (attioLP.associatedPeopleIds.length > 0) {
+            const attioPerson = await attioClient.getPersonById(attioLP.associatedPeopleIds[0]);
+
+            if (attioPerson && attioPerson.email) {
+              // Find or create person by email
+              let person = await prisma.person.findUnique({
+                where: { email: attioPerson.email },
+              });
+
+              if (!person) {
+                person = await prisma.person.create({
+                  data: {
+                    email: attioPerson.email,
+                    canonicalKey: attioPerson.email.toLowerCase(),
+                    firstName: attioPerson.firstName || 'Unknown',
+                    lastName: attioPerson.lastName || '',
+                    fullName: attioPerson.fullName || attioPerson.email,
+                    phone: attioPerson.phone || attioLP.phone,
+                    linkedInUrl: attioPerson.linkedinUrl,
+                    twitterHandle: attioPerson.twitterHandle,
+                    city: attioPerson.city,
+                    country: attioPerson.country,
+                  },
+                });
+                results.details.push(`Created person: ${person.fullName}`);
+              }
+
+              personId = person.id;
+
+              // Link person to company if available
+              if (attioPerson.companyRecordId) {
+                const attioCompany = await attioClient.getCompanyById(attioPerson.companyRecordId);
+                if (attioCompany && attioCompany.name) {
+                  const domain = attioCompany.domain || extractDomainFromEmail(attioPerson.email);
+                  const canonicalKey = domain || attioCompany.name.toLowerCase().replace(/\s+/g, '-');
+
+                  let org = await prisma.organization.findFirst({
+                    where: {
+                      OR: [
+                        domain ? { domain } : {},
+                        { canonicalKey },
+                        { name: attioCompany.name },
+                      ].filter(c => Object.keys(c).length > 0),
+                    },
+                  });
+
+                  if (!org) {
+                    org = await prisma.organization.create({
+                      data: {
+                        name: attioCompany.name,
+                        canonicalKey,
+                        domain,
+                        description: attioCompany.description,
+                        industry: attioCompany.industry,
+                        city: attioCompany.city,
+                        country: attioCompany.country,
+                        organizationType: 'LP',
+                      },
+                    });
+                    results.details.push(`Created organization: ${org.name}`);
+                  }
+
+                  organizationId = org.id;
+                }
+              }
+            } else if (attioPerson) {
+              // Person without email - create with LP name
+              const personName = attioPerson.fullName || attioLP.name || 'Unknown LP';
+              const person = await prisma.person.create({
+                data: {
+                  canonicalKey: `attio-lp-${parentId}`,
+                  firstName: attioPerson.firstName || personName.split(' ')[0] || 'Unknown',
+                  lastName: attioPerson.lastName || personName.split(' ').slice(1).join(' ') || '',
+                  fullName: personName,
+                  phone: attioPerson.phone || attioLP.phone,
+                  linkedInUrl: attioPerson.linkedinUrl,
+                  twitterHandle: attioPerson.twitterHandle,
+                },
+              });
+              personId = person.id;
+              results.details.push(`Created person (no email): ${person.fullName}`);
+            }
+          }
+
+          // Process associated companies if no person was found
+          if (!personId && attioLP.associatedCompanyIds.length > 0) {
+            const attioCompany = await attioClient.getCompanyById(attioLP.associatedCompanyIds[0]);
+
+            if (attioCompany && attioCompany.name) {
+              const domain = attioCompany.domain;
+              const canonicalKey = domain || attioCompany.name.toLowerCase().replace(/\s+/g, '-');
+
+              let org = await prisma.organization.findFirst({
+                where: {
+                  OR: [
+                    domain ? { domain } : {},
+                    { canonicalKey },
+                    { name: attioCompany.name },
+                  ].filter(c => Object.keys(c).length > 0),
+                },
+              });
+
+              if (!org) {
+                org = await prisma.organization.create({
+                  data: {
+                    name: attioCompany.name,
+                    canonicalKey,
+                    domain,
+                    description: attioCompany.description,
+                    industry: attioCompany.industry,
+                    city: attioCompany.city,
+                    country: attioCompany.country,
+                    organizationType: 'LP',
+                  },
+                });
+                results.details.push(`Created organization: ${org.name}`);
+              }
+
+              organizationId = org.id;
+            }
+          }
+
+          // If no person or company was found, create a person record from LP name
+          if (!personId && !organizationId && attioLP.name) {
+            const nameParts = attioLP.name.split(' ');
+            const person = await prisma.person.create({
+              data: {
+                canonicalKey: `attio-lp-${parentId}`,
+                firstName: nameParts[0] || 'Unknown',
+                lastName: nameParts.slice(1).join(' ') || '',
+                fullName: attioLP.name,
+                phone: attioLP.phone,
+              },
+            });
+            personId = person.id;
+            results.details.push(`Created person from LP name: ${person.fullName}`);
+          }
+        } else if (parentType === 'people') {
           // Fetch the person details from Attio
           const people = await attioClient.listPeople(1000);
           const attioPerson = people.find(p => p.id === parentId);
@@ -277,6 +428,12 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        // Build combined notes with LP name context
+        const combinedNotes = [
+          lpName ? `Attio LP: ${lpName}` : null,
+          notes,
+        ].filter(Boolean).join('\n');
+
         if (existingProspect) {
           // Update existing prospect with Attio data
           await prisma.lPProspect.update({
@@ -284,12 +441,15 @@ export async function POST(request: NextRequest) {
             data: {
               stage: mapAttioStageToLPStage(status),
               targetAmount: targetAmount || undefined,
-              notes: notes || existingProspect.notes,
+              notes: combinedNotes || existingProspect.notes,
               sourceType: 'attio',
               sourceId: entry.id.entry_id,
+              // Also update person/org links if we found new associations
+              ...(personId && !existingProspect.personId ? { personId } : {}),
+              ...(organizationId && !existingProspect.organizationId ? { organizationId } : {}),
             },
           });
-          results.details.push(`Updated existing prospect`);
+          results.details.push(`Updated existing prospect: ${lpName || personId || organizationId}`);
           results.imported++;
         } else {
           // Create new LP prospect
@@ -299,7 +459,7 @@ export async function POST(request: NextRequest) {
               organizationId: organizationId || undefined,
               stage: mapAttioStageToLPStage(status),
               targetAmount: targetAmount || undefined,
-              notes,
+              notes: combinedNotes || null,
               fundName: 'Red Beard Ventures Fund II',
               sourceType: 'attio',
               sourceId: entry.id.entry_id,
