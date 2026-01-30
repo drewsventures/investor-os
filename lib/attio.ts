@@ -266,6 +266,65 @@ export class AttioClient {
       raw: record,
     };
   }
+
+  /**
+   * List all lists in Attio
+   */
+  async listLists(): Promise<AttioList[]> {
+    const response = await this.request<{ data: AttioList[] }>('/lists');
+    return response.data;
+  }
+
+  /**
+   * Get list entries
+   */
+  async getListEntries(listId: string, limit = 500): Promise<AttioListEntry[]> {
+    const entries: AttioListEntry[] = [];
+    let offset = 0;
+
+    while (true) {
+      const response = await this.request<{ data: AttioListEntry[] }>(
+        `/lists/${listId}/entries/query`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ limit: Math.min(limit - entries.length, 100), offset }),
+        }
+      );
+
+      entries.push(...response.data);
+
+      if (response.data.length < 100 || entries.length >= limit) break;
+      offset += response.data.length;
+    }
+
+    return entries;
+  }
+
+  /**
+   * Get list by name
+   */
+  async getListByName(listName: string): Promise<AttioList | null> {
+    const lists = await this.listLists();
+    return lists.find((l) => l.name === listName) || null;
+  }
+}
+
+export interface AttioListEntry {
+  id: {
+    entry_id: string;
+    list_id: string;
+  };
+  parent_record_id: string;
+  parent_object: string;
+  values: Record<string, any[]>;
+  created_at: string;
+}
+
+export interface AttioList {
+  id: { list_id: string };
+  api_slug: string;
+  name: string;
+  parent_object: string[];
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import Sidebar from './Sidebar';
+import HubSidebar from './navigation/HubSidebar';
 import { AuthProvider } from './auth/AuthProvider';
 import UserMenu from './auth/UserMenu';
 
@@ -36,7 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <UserMenu />
         </header>
 
-        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+        <HubSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
         <main
           className={`transition-all duration-300 pt-14 ${
             collapsed ? 'ml-16' : 'ml-64'

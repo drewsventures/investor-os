@@ -87,6 +87,20 @@ enum Priority {
   URGENT
 }
 
+// LP Fundraising Pipeline Stages
+enum LPStage {
+  IDENTIFIED        // Initial identification
+  CONTACTED         // First outreach made
+  MEETING_SCHEDULED // Meeting on calendar
+  MET               // Had initial meeting
+  INTERESTED        // Expressed interest
+  DUE_DILIGENCE     // Reviewing fund materials
+  SOFT_COMMIT       // Verbal commitment
+  HARD_COMMIT       // Signed commitment
+  FUNDED            // Capital received
+  PASSED            // Declined to invest
+}
+
 // PEOPLE - Unified person tracking
 model Person {
   id              String   @id @default(cuid())
@@ -136,6 +150,9 @@ model Person {
 
   // Updates (notes, news, etc.)
   updates             Update[]
+
+  // LP Prospect (if this person is an LP prospect)
+  lpProspect          LPProspect?
 
   // Link to User account (if this person is a team member)
   userAccount         User?
@@ -204,6 +221,13 @@ model Organization {
   // Updates (notes, news, etc.)
   updates         Update[]
 
+  // LP Prospect (if this organization is an LP prospect)
+  lpProspect      LPProspect?
+
+  // Hub classification
+  hubType         String?     // 'rbv', 'denarii', or null for both
+  clientType      String?     // For Denarii: 'client', 'prospect', 'vendor', 'accelerator'
+
   @@index([canonicalKey])
   @@index([organizationType])
   @@index([privacyTier])
@@ -211,6 +235,8 @@ model Organization {
   @@index([country])
   @@index([region])
   @@index([currentOwner])
+  @@index([hubType])
+  @@index([clientType])
 }
 
 // GENERIC RELATIONSHIPS - Graph edges between any entities
@@ -414,6 +440,73 @@ model LPCommitment {
   @@index([personId])
   @@index([organizationId])
   @@index([fundName])
+}
+
+// LP PROSPECT - Fund II fundraising pipeline
+model LPProspect {
+  id              String    @id @default(cuid())
+
+  // Pipeline stage
+  stage           LPStage   @default(IDENTIFIED)
+
+  // Commitment details
+  targetAmount    Decimal?  @db.Decimal(15, 2)  // Target commitment amount
+  projectedClose  DateTime?                      // Expected close date
+  probability     Int?                           // 0-100 likelihood
+  notes           String?   @db.Text
+
+  // LP can be a Person or Organization (one or the other)
+  personId        String?   @unique
+  person          Person?   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  organizationId  String?   @unique
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Which fund they're prospects for
+  fundName        String    @default("Red Beard Ventures Fund II")
+
+  // Tracking
+  assignedToId    String?
+  assignedTo      User?     @relation("LPProspectAssignee", fields: [assignedToId], references: [id])
+  lastContactedAt DateTime?
+  nextFollowUp    DateTime?
+
+  // Source tracking (for Attio imports)
+  sourceType      String?   // 'attio', 'manual', etc.
+  sourceId        String?   // External ID from source system
+
+  // Stage history
+  stageHistory    LPStageHistory[]
+
+  // Metadata
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([stage])
+  @@index([fundName])
+  @@index([assignedToId])
+  @@index([sourceType, sourceId])
+}
+
+// LP STAGE HISTORY - Track stage transitions for analytics
+model LPStageHistory {
+  id           String     @id @default(cuid())
+
+  prospectId   String
+  prospect     LPProspect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  // Stage transition
+  fromStage    LPStage?
+  toStage      LPStage
+
+  // Context
+  changedById  String?
+  changedBy    User?      @relation("LPStageChanger", fields: [changedById], references: [id])
+  notes        String?    @db.Text
+
+  changedAt    DateTime   @default(now())
+
+  @@index([prospectId])
+  @@index([changedAt])
 }
 
 // CONVERSATIONS - Meetings, emails, calls
@@ -1010,6 +1103,10 @@ model User {
   gmailConnections      GmailConnection[]
   firefliesConnections  FirefliesConnection[]
   updates               Update[]
+
+  // LP Pipeline
+  assignedLPProspects   LPProspect[]        @relation("LPProspectAssignee")
+  lpStageChanges        LPStageHistory[]    @relation("LPStageChanger")
 
   @@index([supabaseUserId])
   @@index([teamId])
