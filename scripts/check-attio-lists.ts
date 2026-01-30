@@ -26,7 +26,7 @@ async function main() {
       entries.forEach((entry, i) => {
         console.log(`\n${i + 1}. Entry ID: ${entry.id.entry_id}`);
         console.log(`   Parent: ${entry.parent_object} (${entry.parent_record_id})`);
-        console.log(`   Values:`, Object.keys(entry.values));
+        console.log(`   Values:`, Object.keys(entry.entry_values || {}));
       });
     }
   } catch (error) {

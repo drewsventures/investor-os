@@ -82,12 +82,21 @@ function getEmailValue(values: Record<string, any[]>): string | null {
   return arr[0].email_address || arr[0].value || null;
 }
 
-// Get select/status value from Attio entry
+// Get select value from Attio entry
 function getSelectValue(values: Record<string, any[]>, key: string): string | null {
   const arr = values[key];
   if (!arr || arr.length === 0) return null;
   const first = arr[0];
   return first.option?.title || first.title || first.value || null;
+}
+
+// Get status value from Attio entry (status type uses .status.title, not .option.title)
+function getStatusValue(values: Record<string, any[]>, key: string): string | null {
+  const arr = values[key];
+  if (!arr || arr.length === 0) return null;
+  const first = arr[0];
+  // Status type uses status.title, select type uses option.title
+  return first.status?.title || first.option?.title || first.title || first.value || null;
 }
 
 export async function POST(request: NextRequest) {
@@ -138,12 +147,14 @@ export async function POST(request: NextRequest) {
         const parentType = entry.parent_object; // 'people' or 'companies'
         const parentId = entry.parent_record_id;
 
-        // Get entry-specific values (like status, target amount)
-        const status = getSelectValue(entry.values, 'status');
-        const targetAmount = getNumberValue(entry.values, 'target_amount') ||
-                            getNumberValue(entry.values, 'commitment_target') ||
-                            getNumberValue(entry.values, 'amount');
-        const notes = getTextValue(entry.values, 'notes');
+        // Get entry-specific values from entry_values (list-level attributes)
+        const entryValues = entry.entry_values || {};
+        const status = getStatusValue(entryValues, 'status');
+        const targetAmount = getNumberValue(entryValues, 'fund_ii_commitment') ||
+                            getNumberValue(entryValues, 'target_amount') ||
+                            getNumberValue(entryValues, 'commitment_target') ||
+                            getNumberValue(entryValues, 'amount');
+        const notes = getTextValue(entryValues, 'notes');
 
         let personId: string | null = null;
         let organizationId: string | null = null;

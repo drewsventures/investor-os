@@ -386,7 +386,7 @@ export interface AttioListEntry {
   };
   parent_record_id: string;
   parent_object: string;
-  values: Record<string, any[]>;
+  entry_values: Record<string, any[]>;
   created_at: string;
 }
 
