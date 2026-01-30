@@ -146,7 +146,7 @@ export default function FundIIFundraisePage() {
       const res = await fetch('/api/attio/import-lps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listName: 'RBV LP Fundraising II' }),
+        body: JSON.stringify({ listName: 'RBV LP Fundraising Fund II' }),
       });
 
       if (res.ok) {
